@@ -1,0 +1,48 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}{{ candidate.full_name }} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="text-sm breadcrumbs">
+    <ul>
+      <li><a href="{% url 'hiring:candidate_list' %}">Candidates</a></li>
+      <li>{{ candidate.full_name }}</li>
+    </ul>
+  </div>
+
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-bold">{{ candidate.full_name }}</h1>
+      <p class="opacity-70">{{ candidate.email }}</p>
+    </div>
+    <a href="{% url 'hiring:candidate_edit' candidate.pk %}" class="btn btn-sm">Edit</a>
+  </div>
+
+  <div class="mt-6 bg-base-100 rounded-box border border-base-300 p-6 max-w-2xl">
+    <dl class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <dt class="text-sm opacity-60">Phone</dt>
+        <dd>{{ candidate.phone|default:"—" }}</dd>
+      </div>
+      <div>
+        <dt class="text-sm opacity-60">LinkedIn or portfolio</dt>
+        <dd class="break-all">{% if candidate.url %}<a href="{{ candidate.url }}" class="link" target="_blank" rel="noopener noreferrer">{{ candidate.url }}</a>{% else %}—{% endif %}</dd>
+      </div>
+      <div>
+        <dt class="text-sm opacity-60">Source</dt>
+        <dd>{{ candidate.get_source_display }}</dd>
+      </div>
+      <div>
+        <dt class="text-sm opacity-60">Source details</dt>
+        <dd>{{ candidate.source_details|default:"—" }}</dd>
+      </div>
+      <div class="sm:col-span-2">
+        <dt class="text-sm opacity-60">Notes</dt>
+        <dd class="whitespace-pre-line">{{ candidate.notes|default:"—" }}</dd>
+      </div>
+      <div class="sm:col-span-2 text-sm opacity-60">
+        Logged {{ candidate.created_at|date:"M j, Y" }} · Last updated {{ candidate.updated_at|date:"M j, Y" }}
+      </div>
+    </dl>
+  </div>
+{% endblock %}

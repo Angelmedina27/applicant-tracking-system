@@ -28,6 +28,38 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 2 (candidates: log, list, edit and search)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 2`
+2. I approve them. *(TDD behaviors: case-insensitive duplicate email refused on create with a link to the existing candidate; edit keeps its own email but refuses another candidate's; list search by partial name or email)*
+3. Yes, I approve it. *(RED test for behavior 1)*
+4. Yes, move on to behavior 2
+5. Yes, I approve it. *(RED test for behavior 2)*
+6. Yes, move onto behavior 3
+7. Yes, I approve the test. *(RED test for behavior 3)*
+8. Yes add full-name matching and continue with phase 2
+9. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - The `Candidate` model has a fixed six-choice `source`, an `archived` flag and timestamps. Migration `0001_initial` includes a `UniqueConstraint(Lower("email"))`.
+  - `CandidateForm.clean_email` refuses a case-insensitive duplicate, ignoring the candidate being edited. It keeps the match on the form, so the template can show a "Go to *Name* instead" link.
+  - There are candidate list, create, detail and edit pages, and the sidebar's Candidates link is now live.
+  - The list search matches part of a first name, last name, full name or email, ignoring letter case.
+  - Added a `make_candidate` factory fixture.
+  - Three TDD behaviors went red → green. Ten normal test functions (19 test cases with parametrization) cover create/detail, the six source choices, the DB-level duplicate, the pre-filled edit form, the 404, login required on all four pages, and the active sidebar link.
+  - All 28 tests, Ruff lint and Ruff format pass. I verified the phase manually in the browser.
+- **Deviations:**
+  - After behavior 3 went green, Claude pointed out that searching a full name ("Ada Lovelace") matched nothing, because each field was matched separately. I chose to add full-name matching, with a `"ada love"` test case.
+  - Behavior 1's GREEN added the database constraint as well as the form check. That went beyond the minimum the test needed, but Claude stated it in the plan I approved.
+  - Claude kept the duplicate link out of the error-message HTML. The form keeps the matched candidate, and the template renders the link, so no `mark_safe` is needed.
+- **Sideways:**
+  - Behavior 1's form check deliberately didn't leave out the candidate being edited. That gap was what made behavior 2's test go red (200 instead of 302).
+  - `0001_initial` was generated before the constraint existed, so Claude deleted and regenerated it. It was never committed.
+  - The first full-name annotation was named `full_name` and clashed with the model property ("property … has no setter"), so it was renamed `search_name`.
+  - Ruff's DJ012 flagged `get_absolute_url` placed after a custom property, so the model was reordered.
+
 ## 2026-10-29 — Wrote CLAUDE.md and implemented Phase 1 (project skeleton, login, app shell)
 
 ### Prompts

@@ -1,0 +1,38 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}{% if candidate %}Edit {{ candidate.full_name }}{% else %}Log candidate{% endif %} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <h1 class="text-2xl font-bold">{% if candidate %}Edit {{ candidate.full_name }}{% else %}Log candidate{% endif %}</h1>
+
+  <form method="post" class="mt-6 bg-base-100 rounded-box border border-base-300 p-6 max-w-2xl" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div role="alert" class="alert alert-error text-sm mb-4">
+        {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+      </div>
+    {% endif %}
+    <div class="grid gap-x-4 sm:grid-cols-2">
+      {% for field in form %}
+        <fieldset class="fieldset{% if field.name == 'notes' or field.name == 'source_details' %} sm:col-span-2{% endif %}">
+          <label class="fieldset-legend" for="{{ field.id_for_label }}">
+            {{ field.label }}{% if not field.field.required %} <span class="font-normal opacity-60">(optional)</span>{% endif %}
+          </label>
+          {{ field }}
+          {% for error in field.errors %}
+            <p class="text-error text-sm">{{ error }}</p>
+          {% endfor %}
+          {% if field.name == 'email' and form.duplicate_candidate %}
+            <p class="text-sm">
+              Go to <a href="{{ form.duplicate_candidate.get_absolute_url }}" class="link link-primary">{{ form.duplicate_candidate.full_name }}</a> instead.
+            </p>
+          {% endif %}
+        </fieldset>
+      {% endfor %}
+    </div>
+    <div class="mt-6 flex gap-2">
+      <button type="submit" class="btn btn-primary">{% if candidate %}Save changes{% else %}Log candidate{% endif %}</button>
+      <a href="{% if candidate %}{{ candidate.get_absolute_url }}{% else %}{% url 'hiring:candidate_list' %}{% endif %}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

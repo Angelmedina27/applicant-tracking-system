@@ -1,0 +1,39 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}Candidates · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <h1 class="text-2xl font-bold">Candidates</h1>
+    <a href="{% url 'hiring:candidate_create' %}" class="btn btn-primary btn-sm">Log candidate</a>
+  </div>
+
+  <form method="get" class="mt-6 flex gap-2 max-w-md">
+    <input type="search" name="q" value="{{ query }}" placeholder="Search by name or email" class="input w-full" aria-label="Search candidates">
+    <button type="submit" class="btn">Search</button>
+  </form>
+
+  {% if candidates %}
+    <div class="mt-4 overflow-x-auto bg-base-100 rounded-box border border-base-300">
+      <table class="table">
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Source</th><th class="hidden sm:table-cell">Logged</th></tr>
+        </thead>
+        <tbody>
+          {% for candidate in candidates %}
+            <tr class="hover:bg-base-200">
+              <td><a href="{{ candidate.get_absolute_url }}" class="link link-hover font-medium">{{ candidate.full_name }}</a></td>
+              <td>{{ candidate.email }}</td>
+              <td>{{ candidate.get_source_display }}</td>
+              <td class="hidden sm:table-cell">{{ candidate.created_at|date:"M j, Y" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="mt-4 bg-base-100 rounded-box border border-base-300 p-8 text-center opacity-60">
+      {% if query %}No candidates match “{{ query }}”.{% else %}No candidates logged yet.{% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

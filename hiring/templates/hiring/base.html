@@ -27,7 +27,7 @@
         <ul class="menu p-0 w-full">
           <li><a href="{% url 'hiring:job_list' %}" class="{% if url_name == 'job_list' %}menu-active{% endif %}">Pipeline</a></li>
           <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
-          <li class="menu-disabled"><span>Candidates</span></li>
+          <li><a href="{% url 'hiring:candidate_list' %}" class="{% if url_name|slice:':9' == 'candidate' %}menu-active{% endif %}">Candidates</a></li>
           <li class="menu-disabled"><span>Skills</span></li>
         </ul>
         <div class="mt-auto pt-4 border-t border-base-300">
