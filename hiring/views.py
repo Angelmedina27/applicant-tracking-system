@@ -2,8 +2,8 @@ from django.db.models import Q, Value
 from django.db.models.functions import Concat
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import CandidateForm
-from .models import Candidate
+from .forms import CandidateForm, SkillForm
+from .models import Candidate, Skill
 
 
 def job_list(request):
@@ -40,3 +40,21 @@ def candidate_edit(request, pk):
         form.save()
         return redirect(candidate)
     return render(request, "hiring/candidate_form.html", {"form": form, "candidate": candidate})
+
+
+def skill_list(request):
+    form = SkillForm(request.POST or None)
+    if form.is_valid():
+        form.save()
+        return redirect("hiring:skill_list")
+    return render(request, "hiring/skill_list.html", {"skills": Skill.objects.all(), "form": form})
+
+
+def skill_delete(request, pk):
+    skill = get_object_or_404(Skill, pk=pk)
+    if not skill.can_delete():
+        return render(request, "hiring/skill_confirm_delete.html", {"skill": skill}, status=409)
+    if request.method == "POST":
+        skill.delete()
+        return redirect("hiring:skill_list")
+    return render(request, "hiring/skill_confirm_delete.html", {"skill": skill})

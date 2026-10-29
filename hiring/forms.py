@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Candidate
+from .models import Candidate, Skill
 
 
 class CandidateForm(forms.ModelForm):
@@ -38,3 +38,18 @@ class CandidateForm(forms.ModelForm):
         if self.duplicate_candidate:
             raise forms.ValidationError("A candidate with this email already exists.")
         return email
+
+
+class SkillForm(forms.ModelForm):
+    class Meta:
+        model = Skill
+        fields = ["name"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "input w-full", "placeholder": "e.g. Python"})
+        }
+
+    def clean_name(self):
+        name = self.cleaned_data["name"]
+        if Skill.objects.filter(name__iexact=name).exclude(pk=self.instance.pk).exists():
+            raise forms.ValidationError("A skill with this name already exists.")
+        return name

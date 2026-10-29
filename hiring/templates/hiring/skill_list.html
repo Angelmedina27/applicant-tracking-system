@@ -1,0 +1,47 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}Skills · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <h1 class="text-2xl font-bold">Skills</h1>
+
+  <form method="post" class="mt-6 max-w-md" novalidate>
+    {% csrf_token %}
+    <label class="fieldset-legend" for="{{ form.name.id_for_label }}">Add a skill</label>
+    <div class="flex gap-2">
+      {{ form.name }}
+      <button type="submit" class="btn btn-primary">Add</button>
+    </div>
+    {% for error in form.name.errors %}
+      <p class="text-error text-sm mt-1">{{ error }}</p>
+    {% endfor %}
+  </form>
+
+  {% if skills %}
+    <div class="mt-4 overflow-x-auto bg-base-100 rounded-box border border-base-300 max-w-2xl">
+      <table class="table">
+        <thead>
+          <tr><th>Name</th><th class="text-right">Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for skill in skills %}
+            <tr class="hover:bg-base-200">
+              <td class="font-medium">{{ skill.name }}</td>
+              <td class="text-right">
+                {% if skill.can_delete %}
+                  <a href="{% url 'hiring:skill_delete' skill.pk %}" class="btn btn-ghost btn-xs text-error">Delete</a>
+                {% else %}
+                  <span class="text-sm opacity-60">In use</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="mt-4 bg-base-100 rounded-box border border-base-300 p-8 text-center opacity-60 max-w-2xl">
+      No skills added yet.
+    </div>
+  {% endif %}
+{% endblock %}

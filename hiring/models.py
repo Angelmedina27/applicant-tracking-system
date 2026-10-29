@@ -43,3 +43,24 @@ class Candidate(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
+
+
+class Skill(models.Model):
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        ordering = [Lower("name")]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"),
+                name="unique_skill_name_ci",
+                violation_error_message="A skill with this name already exists.",
+            ),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def can_delete(self):
+        # True only when no job uses this skill. Nothing can use one until jobs exist.
+        return True

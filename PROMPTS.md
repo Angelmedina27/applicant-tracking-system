@@ -28,6 +28,44 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 3 (Skills page)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 3`
+2. Yes I approve them *(TDD behaviors: adding a skill whose name matches an existing one in any case is refused; deleting a skill asks for confirmation, then removes it)*
+3. Yes, I approve it *(RED test for behavior 1)*
+4. Yes, move onto behavior 2
+5. Yes, I approve it *(RED test for behavior 2)*
+6. Yes, continue with the rest of phase 3
+7. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - The `Skill` model is ordered by name ignoring case. Migration `0002_skill` includes a `UniqueConstraint(Lower("name"))`.
+  - `SkillForm.clean_name` refuses a duplicate name in any letter case, the same way `clean_email` does for candidates.
+  - The `/skills/` page lists skills and has an inline add form. `/skills/<pk>/delete/` shows a confirmation page and deletes on POST. The sidebar's Skills link is now live.
+  - `Skill.can_delete()` always returns True until jobs exist. The list shows Delete only when it's true, and the delete view returns a 409 and changes nothing when it's false.
+  - Two TDD behaviors went red → green. Eight normal test functions (nine test cases) cover:
+    - name ordering;
+    - blank names;
+    - the DB-level duplicate;
+    - the Delete link;
+    - the refused delete (with `can_delete` faked to False);
+    - the 404 for an unknown skill;
+    - login required on both pages;
+    - the active sidebar link.
+  - All 39 tests, Ruff lint and Ruff format pass. I verified the phase manually in the browser.
+- **Deviations:**
+  - Claude chose only two TDD behaviors instead of three. A test of `can_delete` refusing needs jobs, and the plan leaves that test to Phase 4.
+  - I approved everything as proposed and asked no follow-up questions.
+  - Claude made two choices that aren't in the plan:
+    - a refused delete returns 409 with an explanation page;
+    - the refusal test fakes `can_delete` with `monkeypatch`, so the view's guard is tested now rather than waiting for Phase 4.
+  - As in Phase 2, behavior 1's GREEN added the database constraint as well as the form check, which went beyond the minimum the test needed. Claude stated this in the plan I approved.
+- **Sideways:**
+  - The model was scaffolded without the constraint, so the RED failed on an assertion (302 instead of 200). Migration `0002_skill` was then deleted and regenerated with the constraint. It was never committed.
+  - Ruff's E501 flagged the `SkillForm` widget line at 106 characters, and Claude wrapped it.
+
 ## 2026-10-29 — Implemented Phase 2 (candidates: log, list, edit and search)
 
 ### Prompts

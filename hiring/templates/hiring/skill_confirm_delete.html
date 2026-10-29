@@ -1,0 +1,28 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}Delete {{ skill.name }} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="text-sm breadcrumbs">
+    <ul>
+      <li><a href="{% url 'hiring:skill_list' %}">Skills</a></li>
+      <li>Delete {{ skill.name }}</li>
+    </ul>
+  </div>
+
+  <div class="mt-2 bg-base-100 rounded-box border border-base-300 p-6 max-w-xl">
+    {% if skill.can_delete %}
+      <h1 class="text-2xl font-bold">Delete “{{ skill.name }}”?</h1>
+      <p class="mt-2">This permanently removes the skill.</p>
+      <form method="post" class="mt-6 flex gap-2">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-error">Delete skill</button>
+        <a href="{% url 'hiring:skill_list' %}" class="btn btn-ghost">Cancel</a>
+      </form>
+    {% else %}
+      <h1 class="text-2xl font-bold">“{{ skill.name }}” can’t be deleted</h1>
+      <p class="mt-2">This skill is used by at least one job. Remove it from those jobs first.</p>
+      <a href="{% url 'hiring:skill_list' %}" class="btn mt-6">Back to skills</a>
+    {% endif %}
+  </div>
+{% endblock %}
