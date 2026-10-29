@@ -41,7 +41,7 @@
             {% endif %}
           </li>
           <li><a href="{% url 'hiring:job_list' %}" class="{% if url_name == 'job_list' or url_name == 'job_create' or url_name == 'job_edit' %}menu-active{% endif %}">Jobs</a></li>
-          <li><a href="{% url 'hiring:candidate_list' %}" class="{% if url_name|slice:':9' == 'candidate' %}menu-active{% endif %}">Candidates</a></li>
+          <li><a href="{% url 'hiring:candidate_list' %}" class="{% if url_name|slice:':9' == 'candidate' or url_name == 'application_create_for_candidate' %}menu-active{% endif %}">Candidates</a></li>
           <li><a href="{% url 'hiring:skill_list' %}" class="{% if url_name|slice:':5' == 'skill' %}menu-active{% endif %}">Skills</a></li>
         </ul>
         <div class="mt-auto pt-4 border-t border-base-300">

@@ -77,23 +77,42 @@ class JobOpeningForm(forms.ModelForm):
 
 
 class ApplicationForm(forms.ModelForm):
+    """Shared by both entry points: fix the `job` to pick a candidate, or fix the
+    `candidate` to pick a job. `choice_name` names the one field left to pick."""
+
     class Meta:
         model = Application
-        fields = ["candidate"]
+        fields = ["candidate", "job"]
 
-    def __init__(self, *args, job, **kwargs):
+    def __init__(self, *args, job=None, candidate=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.instance.job = job
-        candidate = self.fields["candidate"]
-        candidate.queryset = Candidate.objects.exclude(applications__job=job)
-        candidate.label_from_instance = lambda c: f"{c.full_name} ({c.email})"
-        candidate.error_messages["invalid_choice"] = (
-            "That candidate can't be added. They may have already applied to this job."
-        )
-        candidate.widget.attrs["class"] = "select w-full"
+        if job is not None:
+            self.instance.job = job
+            self.choice_name = "candidate"
+            del self.fields["job"]
+            choice = self.fields["candidate"]
+            choice.queryset = Candidate.objects.exclude(applications__job=job)
+            choice.label_from_instance = lambda c: f"{c.full_name} ({c.email})"
+            choice.error_messages["invalid_choice"] = (
+                "That candidate can't be added. They may have already applied to this job."
+            )
+        else:
+            self.instance.candidate = candidate
+            self.choice_name = "job"
+            del self.fields["candidate"]
+            choice = self.fields["job"]
+            choice.queryset = JobOpening.objects.filter(status=JobOpening.Status.OPEN).exclude(
+                applications__candidate=candidate
+            )
+            choice.label_from_instance = lambda j: f"{j.title} ({j.department}, {j.location})"
+            choice.error_messages["invalid_choice"] = (
+                "That job can't be chosen. "
+                "It may be closed, or the candidate already applied to it."
+            )
+        choice.widget.attrs["class"] = "select w-full"
 
     def clean(self):
         cleaned_data = super().clean()
-        if self.instance.job.status != JobOpening.Status.OPEN:
+        if self.choice_name == "candidate" and self.instance.job.status != JobOpening.Status.OPEN:
             raise forms.ValidationError("This job is closed, so it can't take new applications.")
         return cleaned_data

@@ -40,19 +40,32 @@ def job_edit(request, pk):
 def application_create_for_job(request, pk):
     job = get_object_or_404(JobOpening, pk=pk)
     form = ApplicationForm(request.POST or None, job=job)
+    return _create_application(request, form, job, {"job": job})
+
+
+def application_create_for_candidate(request, pk):
+    candidate = get_object_or_404(Candidate, pk=pk)
+    form = ApplicationForm(request.POST or None, candidate=candidate)
+    return _create_application(request, form, candidate, {"candidate": candidate})
+
+
+def _create_application(request, form, fixed, context):
+    """Shared by both entry points; `fixed` is the job or candidate to return to."""
     if form.is_valid():
         try:
-            Application.start(candidate=form.cleaned_data["candidate"], job=job, by=request.user)
+            Application.start(
+                candidate=form.instance.candidate, job=form.instance.job, by=request.user
+            )
         except IntegrityError:
-            form.add_error("candidate", "This candidate has already applied to this job.")
+            form.add_error(form.choice_name, "This candidate has already applied to this job.")
         else:
-            return redirect(job)
-    has_choices = form.fields["candidate"].queryset.exists()
-    return render(
-        request,
-        "hiring/application_form.html",
-        {"form": form, "job": job, "has_choices": has_choices},
-    )
+            return redirect(fixed)
+    context |= {
+        "form": form,
+        "choice": form[form.choice_name],
+        "has_choices": form.fields[form.choice_name].queryset.exists(),
+    }
+    return render(request, "hiring/application_form.html", context)
 
 
 def candidate_list(request):
@@ -75,7 +88,14 @@ def candidate_create(request):
 
 def candidate_detail(request, pk):
     candidate = get_object_or_404(Candidate, pk=pk)
-    return render(request, "hiring/candidate_detail.html", {"candidate": candidate})
+    applications = candidate.applications.select_related("job").annotate(
+        stage_since=Max("stage_changes__changed_at")
+    )
+    return render(
+        request,
+        "hiring/candidate_detail.html",
+        {"candidate": candidate, "applications": applications},
+    )
 
 
 def candidate_edit(request, pk):

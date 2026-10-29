@@ -300,3 +300,192 @@ def test_delete_rules_protect_jobs_and_users_and_cascade_candidates(
 
     assert not Application.objects.exists()
     assert not StageChange.objects.exists()
+
+
+def test_applying_from_candidate_page_starts_at_applied_with_initial_history(
+    staff_client, staff_user, make_job, make_candidate
+):
+    candidate = make_candidate()
+    job = make_job()
+
+    response = staff_client.post(
+        reverse("hiring:application_create_for_candidate", args=[candidate.pk]),
+        {"job": job.pk},
+    )
+
+    assert response.status_code == 302
+    assert response["Location"] == candidate.get_absolute_url()
+    application = Application.objects.get()
+    assert application.candidate == candidate
+    assert application.job == job
+    assert application.stage == Application.Stage.APPLIED
+    change = StageChange.objects.get()
+    assert change.application == application
+    assert change.from_stage == ""
+    assert change.to_stage == Application.Stage.APPLIED
+    assert change.changed_by == staff_user
+
+
+def test_candidate_page_job_choices_exclude_closed_and_already_applied_jobs(
+    staff_client, staff_user, make_job, make_candidate
+):
+    candidate = make_candidate()
+    open_job = make_job()
+    closed_job = make_job(title="Designer", status=JobOpening.Status.CLOSED)
+    applied_job = make_job(title="Data Analyst")
+    Application.start(candidate=candidate, job=applied_job, by=staff_user)
+    url = reverse("hiring:application_create_for_candidate", args=[candidate.pk])
+
+    choices = staff_client.get(url).context["form"].fields["job"].queryset
+    stale_closed = staff_client.post(url, {"job": closed_job.pk})
+    stale_applied = staff_client.post(url, {"job": applied_job.pk})
+
+    assert list(choices) == [open_job]
+    for stale in (stale_closed, stale_applied):
+        assert stale.status_code == 200
+        assert stale.context["form"].errors["job"]
+    assert Application.objects.count() == 1
+    assert StageChange.objects.count() == 1
+
+
+def test_candidate_page_lists_their_applications_with_job_and_stage(
+    staff_client, staff_user, make_job, make_candidate
+):
+    ada = make_candidate()
+    grace = make_candidate(first_name="Grace", last_name="Hopper", email="grace@example.com")
+    backend = make_job()
+    designer = make_job(title="Designer")
+    analyst = make_job(title="Data Analyst")
+    make_application(ada, backend, staff_user)
+    make_application(ada, designer, staff_user, stage=Application.Stage.SCREENING)
+    make_application(grace, analyst, staff_user, stage=Application.Stage.OFFER)
+
+    html = staff_client.get(ada.get_absolute_url()).content.decode()
+    main = html.split("<main", 1)[1].split("</main>", 1)[0]
+
+    assert f'href="{backend.get_absolute_url()}"' in main
+    assert f'href="{designer.get_absolute_url()}"' in main
+    assert "Applied" in main
+    assert "Screening" in main
+    assert f'href="{analyst.get_absolute_url()}"' not in main
+    assert "Offer" not in main
+
+
+def test_both_entry_points_use_the_shared_application_form(staff_client, make_job, make_candidate):
+    job = make_job()
+    candidate = make_candidate()
+
+    from_job = staff_client.get(reverse("hiring:application_create_for_job", args=[job.pk]))
+    from_candidate = staff_client.get(
+        reverse("hiring:application_create_for_candidate", args=[candidate.pk])
+    )
+
+    assert type(from_job.context["form"]) is ApplicationForm
+    assert type(from_candidate.context["form"]) is ApplicationForm
+    assert list(from_job.context["form"].fields) == ["candidate"]
+    assert list(from_candidate.context["form"].fields) == ["job"]
+
+
+def test_candidate_apply_form_labels_jobs_with_department_and_location(
+    staff_client, make_job, make_candidate
+):
+    candidate = make_candidate()
+    make_job()
+
+    html = staff_client.get(
+        reverse("hiring:application_create_for_candidate", args=[candidate.pk])
+    ).content.decode()
+
+    assert "Backend Engineer (Engineering, Remote)" in html
+    assert ">Apply to job</button>" in html
+    assert f'href="{candidate.get_absolute_url()}" class="btn btn-ghost">Cancel' in html
+
+
+def test_candidate_apply_form_without_available_jobs_points_to_create_one(
+    staff_client, make_job, make_candidate
+):
+    candidate = make_candidate()
+    make_job(status=JobOpening.Status.CLOSED)
+
+    html = staff_client.get(
+        reverse("hiring:application_create_for_candidate", args=[candidate.pk])
+    ).content.decode()
+
+    assert "No jobs are available" in html
+    assert f'href="{reverse("hiring:job_create")}"' in html
+    assert 'name="job"' not in html
+    assert ">Apply to job</button>" not in html
+
+
+def test_candidate_apply_submit_without_job_is_refused(staff_client, make_job, make_candidate):
+    candidate = make_candidate()
+    make_job()
+
+    response = staff_client.post(
+        reverse("hiring:application_create_for_candidate", args=[candidate.pk]), {"job": ""}
+    )
+
+    assert response.status_code == 200
+    assert response.context["form"].errors["job"]
+    assert not Application.objects.exists()
+
+
+def test_simultaneous_duplicate_from_candidate_page_is_refused_on_the_job_field(
+    staff_client, staff_user, make_job, make_candidate, monkeypatch
+):
+    candidate = make_candidate()
+    job = make_job()
+    original_clean = ApplicationForm.clean
+
+    def clean_then_lose_the_race(form):
+        cleaned_data = original_clean(form)
+        Application.start(candidate=candidate, job=job, by=staff_user)
+        return cleaned_data
+
+    monkeypatch.setattr(ApplicationForm, "clean", clean_then_lose_the_race)
+
+    response = staff_client.post(
+        reverse("hiring:application_create_for_candidate", args=[candidate.pk]),
+        {"job": job.pk},
+    )
+
+    assert response.status_code == 200
+    assert response.context["form"].errors["job"] == [
+        "This candidate has already applied to this job."
+    ]
+    assert Application.objects.count() == 1
+    assert StageChange.objects.count() == 1
+
+
+def test_candidate_page_offers_apply_to_job(staff_client, make_candidate):
+    candidate = make_candidate()
+
+    html = staff_client.get(candidate.get_absolute_url()).content.decode()
+
+    assert reverse("hiring:application_create_for_candidate", args=[candidate.pk]) in html
+    assert "No applications yet" in html
+
+
+def test_candidate_apply_page_highlights_candidates_in_sidebar(staff_client, make_candidate):
+    candidate = make_candidate()
+
+    html = staff_client.get(
+        reverse("hiring:application_create_for_candidate", args=[candidate.pk])
+    ).content.decode()
+
+    assert 'class="menu-active">Candidates</a>' in html
+
+
+def test_candidate_apply_form_requires_login(client, make_candidate):
+    url = reverse("hiring:application_create_for_candidate", args=[make_candidate().pk])
+
+    response = client.get(url)
+
+    assert response.status_code == 302
+    assert response["Location"].startswith(reverse("login"))
+
+
+def test_candidate_apply_form_for_unknown_candidate_returns_404(staff_client):
+    url = reverse("hiring:application_create_for_candidate", args=[999])
+
+    assert staff_client.get(url).status_code == 404

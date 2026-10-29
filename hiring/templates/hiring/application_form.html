@@ -1,17 +1,25 @@
 {% extends "hiring/base.html" %}
 
-{% block title %}Add application · {{ job.title }} · Applicant Tracking{% endblock %}
+{% block title %}{% if job %}Add application · {{ job.title }}{% else %}Apply to job · {{ candidate.full_name }}{% endif %} · Applicant Tracking{% endblock %}
 
 {% block content %}
   <div class="text-sm breadcrumbs">
     <ul>
-      <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
-      <li><a href="{{ job.get_absolute_url }}">{{ job.title }}</a></li>
-      <li>Add application</li>
+      {% if job %}
+        <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
+        <li><a href="{{ job.get_absolute_url }}">{{ job.title }}</a></li>
+        <li>Add application</li>
+      {% else %}
+        <li><a href="{% url 'hiring:candidate_list' %}">Candidates</a></li>
+        <li><a href="{{ candidate.get_absolute_url }}">{{ candidate.full_name }}</a></li>
+        <li>Apply to job</li>
+      {% endif %}
     </ul>
   </div>
 
-  <h1 class="text-2xl font-bold">Add application to {{ job.title }}</h1>
+  <h1 class="text-2xl font-bold">
+    {% if job %}Add application to {{ job.title }}{% else %}Apply {{ candidate.full_name }} to a job{% endif %}
+  </h1>
 
   <form method="post" class="mt-6 bg-base-100 rounded-box border border-base-300 p-6 max-w-2xl" novalidate>
     {% csrf_token %}
@@ -19,30 +27,35 @@
       <div role="alert" class="alert alert-error text-sm mb-4">
         {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
       </div>
-    {% elif job.status != 'open' %}
+    {% elif job and job.status != 'open' %}
       <div role="alert" class="alert alert-warning text-sm mb-4">This job is closed, so it can't take new applications.</div>
     {% endif %}
-    {% if job.status == 'open' %}
+    {% if candidate or job.status == 'open' %}
       {% if has_choices %}
         <fieldset class="fieldset">
-          <label class="fieldset-legend" for="{{ form.candidate.id_for_label }}">Candidate</label>
-          {{ form.candidate }}
-          {% for error in form.candidate.errors %}
+          <label class="fieldset-legend" for="{{ choice.id_for_label }}">{{ choice.label }}</label>
+          {{ choice }}
+          {% for error in choice.errors %}
             <p class="text-error text-sm">{{ error }}</p>
           {% endfor %}
         </fieldset>
-      {% else %}
+      {% elif job %}
         <p class="text-sm opacity-60">
           No candidates are available for this job. Everyone logged has already applied.
           <a href="{% url 'hiring:candidate_create' %}" class="link">Log a new candidate</a> first.
         </p>
+      {% else %}
+        <p class="text-sm opacity-60">
+          No jobs are available for this candidate. They have already applied to every open job.
+          <a href="{% url 'hiring:job_create' %}" class="link">Create a job</a> first.
+        </p>
       {% endif %}
     {% endif %}
     <div class="mt-6 flex gap-2">
-      {% if job.status == 'open' and has_choices %}
-        <button type="submit" class="btn btn-primary">Add application</button>
+      {% if has_choices and candidate or has_choices and job.status == 'open' %}
+        <button type="submit" class="btn btn-primary">{% if job %}Add application{% else %}Apply to job{% endif %}</button>
       {% endif %}
-      <a href="{{ job.get_absolute_url }}" class="btn btn-ghost">Cancel</a>
+      <a href="{% if job %}{{ job.get_absolute_url }}{% else %}{{ candidate.get_absolute_url }}{% endif %}" class="btn btn-ghost">Cancel</a>
     </div>
   </form>
 {% endblock %}

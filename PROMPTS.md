@@ -28,6 +28,50 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 6 (apply from the candidate page)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 6`
+2. Yes, I approve *(TDD behaviors: applying from the candidate page creates the application at Applied with exactly one initial `StageChange` recording the user, then returns to the candidate page; the job choices exclude closed and already-applied jobs, and a stale submit naming one is refused without writing anything; the candidate page lists each of their applications with job and current stage, and no one else's)*
+3. Yes, I approve it *(RED test for behavior 1)*
+4. Yes, move on to behavior
+5. Yes, I approve it *(RED test for behavior 2)*
+6. Yes, move on to behavior 3
+7. Yes, I approve it *(RED test for behavior 3)*
+8. Yes continue with the rest of phase 6
+9. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - The shared `ApplicationForm` now takes either `job=` (pick a candidate, as in Phase 5) or `candidate=` (pick a job). It drops the fixed field and exposes `choice_name` for the one left to pick.
+  - In candidate mode, the job choices are open jobs the candidate hasn't applied to, labelled "Title (Department, Location)". A stale choice shows "That job can't be chosen. It may be closed, or the candidate already applied to it."
+  - Both views go through one `_create_application` helper. It calls `Application.start`, turns an `IntegrityError` into an error on the chosen field, and redirects back to the fixed job or candidate.
+  - The new route `/candidates/<pk>/apply/` reuses `application_form.html`. The template now has breadcrumbs, heading, empty-state text, submit label and Cancel target for each entry point. When no jobs are left, it links to "Create a job".
+  - The candidate page has an "Apply to job" button and an Applications table with job (linked, with department and location), stage badge and time in stage, or "No applications yet." The sidebar keeps "Candidates" highlighted on the apply page.
+  - Three TDD behaviors went red → green. Nine normal tests cover:
+    - both entry points using the same form class;
+    - job labels and the Cancel link;
+    - the no-jobs page;
+    - a blank submit;
+    - the simultaneous-submit race landing on the job field;
+    - the Apply button and empty state;
+    - the sidebar highlight;
+    - login required and the 404.
+  - All 90 tests, Ruff lint and Ruff format pass, and no migration was needed. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Excluding archived candidates is still left to Phase 10. Until then, an archived candidate can be applied from their own page.
+  - Claude made choices that aren't in the plan:
+    - The job label format and the invalid-choice message.
+    - One shared template with per-entry-point branches, rather than two templates.
+    - A time-in-stage column on the candidate page.
+    - On the candidate side, closed jobs are refused by the choice queryset. The form's `clean()` closed-job check still applies only when the job is fixed.
+- **Sideways:**
+  - Behavior 1's scaffolding deliberately left the job queryset unfiltered and the POST unsaved, so behaviors 1 and 2 each got a real assertion failure at RED.
+  - The first draft of the generalized form template had a stray empty `{% with %}` line and a duplicated Cancel button. It was rewritten before any test ran.
+  - Behavior 3's first draft checked job links across the whole page, and those checks passed on their own because the sidebar links every job. Claude spotted this and narrowed the assertions to `<main>` before presenting the RED test.
+  - Ruff flagged one 101-character line in the new error message. The string was split, and lint was rerun clean.
+
 ## 2026-10-29 — Implemented Phase 5 (add an application from the job page)
 
 ### Prompts
