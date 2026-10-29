@@ -2,7 +2,7 @@ import pytest
 from django.db import IntegrityError
 from django.urls import reverse
 
-from hiring.models import Skill
+from hiring.models import JobOpening, Skill
 
 pytestmark = pytest.mark.django_db
 
@@ -32,6 +32,24 @@ def test_deleting_skill_asks_for_confirmation_then_removes_it(staff_client):
     assert response.status_code == 302
     assert response["Location"] == reverse("hiring:skill_list")
     assert not Skill.objects.filter(pk=skill.pk).exists()
+
+
+def test_skill_used_by_a_job_cannot_be_deleted(staff_client):
+    skill = Skill.objects.create(name="Python")
+    job = JobOpening.objects.create(
+        title="Backend Engineer", department="Engineering", location="Remote", description="APIs"
+    )
+    job.skills.add(skill)
+    url = reverse("hiring:skill_delete", args=[skill.pk])
+
+    listing = staff_client.get(reverse("hiring:skill_list")).content.decode()
+    response = staff_client.post(url)
+
+    assert f'href="{url}"' not in listing
+    assert "In use" in listing
+    assert response.status_code == 409
+    assert Skill.objects.filter(pk=skill.pk).exists()
+    assert list(job.skills.all()) == [skill]
 
 
 def test_adding_skill_lists_it_in_name_order(staff_client):

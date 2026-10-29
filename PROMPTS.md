@@ -28,6 +28,50 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 4 (jobs CRUD with skills)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 4`
+2. Yes I approve them. *(TDD behaviors: creating a job with checked skills saves it as Open with exactly those skills and goes to its job page; a skill used by a job can't be deleted; editing a job replaces its skills with the checked ones)*
+3. Yes, I approve it. *(RED test for behavior 1)*
+4. Yes, move on to behavior 2
+5. Yes, i approve it *(RED test for behavior 2)*
+6. Yes, move on to behavior 3
+7. Yes, I approve it *(RED test for behavior 3)*
+8. Yes, continue with the rest of phase 4
+9. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - The `JobOpening` model has title, department, location, description, an Open/Closed `status` that defaults to Open, a `skills` many-to-many (`related_name="jobs"`) and timestamps. Migration `0003_jobopening`.
+  - `JobOpeningForm` has the four core fields plus skill checkboxes. Status isn't on the form, so a new job is always Open.
+  - Pages:
+    - `/jobs/` lists title, department, location and a status badge, with links and a "New job" button.
+    - `/jobs/new/` and `/jobs/<pk>/edit/` show the form.
+    - `/jobs/<pk>/` shows the job header, status, skills, description and an Edit action.
+  - `Skill.can_delete()` now returns true only when no job uses the skill, which replaces the Phase 3 stub. The Skills page shows "In use", and the delete view refuses with a 409.
+  - Added a `make_job` fixture. Three TDD behaviors went red → green. Fifteen normal test functions (18 test cases) cover:
+    - the status being ignored on create;
+    - required fields;
+    - skill checkboxes and the empty-skills hint;
+    - the pre-filled edit form;
+    - unchecking every skill;
+    - the list and job pages;
+    - 404s and login required;
+    - the sidebar.
+  - All 60 tests, Ruff lint and Ruff format pass. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Claude made choices that aren't in the plan:
+    - The sidebar highlights Jobs on the list, new and edit pages, and Pipeline on a job's own page, since that page becomes the pipeline. Both links still point to the job list.
+    - The status badge is a shared `_job_status_badge.html` partial.
+    - Job pages show location as well as the department.
+- **Sideways:**
+  - Behavior 1's status assertion passed before GREEN, because the model's `status` default was part of the scaffolding. Only the skills assertion was red. Claude said so when presenting the RED.
+  - Behavior 3 needed a deliberately thin scaffold (an edit view that showed the form but ignored POST) to get a real red, because Django's `ModelForm` replaces M2M sets on its own. Claude flagged in advance that GREEN would be a few lines.
+  - The first version of two normal tests checked `"Open" in html`, which the base layout's `aria-label="Open menu"` always satisfies. Claude caught this before running the feedback loops and changed the checks to match the badge text (`>Open</span>`).
+  - Claude's first attempt to add this entry missed its anchor in PROMPTS.md because of wrong indentation, and it was redone.
+
 ## 2026-10-29 — Implemented Phase 3 (Skills page)
 
 ### Prompts

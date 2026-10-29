@@ -62,5 +62,28 @@ class Skill(models.Model):
         return self.name
 
     def can_delete(self):
-        # True only when no job uses this skill. Nothing can use one until jobs exist.
-        return True
+        return not self.jobs.exists()
+
+
+class JobOpening(models.Model):
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        CLOSED = "closed", "Closed"
+
+    title = models.CharField(max_length=200)
+    department = models.CharField(max_length=100)
+    location = models.CharField(max_length=100)
+    description = models.TextField()
+    status = models.CharField(max_length=10, choices=Status, default=Status.OPEN)
+    skills = models.ManyToManyField(Skill, blank=True, related_name="jobs")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse("hiring:job_detail", args=[self.pk])

@@ -1,6 +1,6 @@
 import pytest
 
-from hiring.models import Candidate
+from hiring.models import Candidate, JobOpening
 
 
 @pytest.fixture
@@ -13,6 +13,22 @@ def make_candidate(db):
             "source": Candidate.Source.REFERRAL,
         }
         return Candidate.objects.create(**(defaults | fields))
+
+    return make
+
+
+@pytest.fixture
+def make_job(db):
+    def make(skills=(), **fields):
+        defaults = {
+            "title": "Backend Engineer",
+            "department": "Engineering",
+            "location": "Remote",
+            "description": "Build and run our APIs.",
+        }
+        job = JobOpening.objects.create(**(defaults | fields))
+        job.skills.set(skills)
+        return job
 
     return make
 

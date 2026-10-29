@@ -8,6 +8,9 @@ app_name = "hiring"
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="hiring:job_list"), name="home"),
     path("jobs/", views.job_list, name="job_list"),
+    path("jobs/new/", views.job_create, name="job_create"),
+    path("jobs/<int:pk>/", views.job_detail, name="job_detail"),
+    path("jobs/<int:pk>/edit/", views.job_edit, name="job_edit"),
     path("candidates/", views.candidate_list, name="candidate_list"),
     path("candidates/new/", views.candidate_create, name="candidate_create"),
     path("candidates/<int:pk>/", views.candidate_detail, name="candidate_detail"),

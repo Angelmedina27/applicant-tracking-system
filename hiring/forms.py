@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Candidate, Skill
+from .models import Candidate, JobOpening, Skill
 
 
 class CandidateForm(forms.ModelForm):
@@ -53,3 +53,24 @@ class SkillForm(forms.ModelForm):
         if Skill.objects.filter(name__iexact=name).exclude(pk=self.instance.pk).exists():
             raise forms.ValidationError("A skill with this name already exists.")
         return name
+
+
+class JobOpeningForm(forms.ModelForm):
+    class Meta:
+        model = JobOpening
+        fields = ["title", "department", "location", "description", "skills"]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 6}),
+            "skills": forms.CheckboxSelectMultiple,
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            widget = field.widget
+            if isinstance(widget, forms.CheckboxSelectMultiple):
+                widget.attrs["class"] = "checkbox checkbox-sm"
+            elif isinstance(widget, forms.Textarea):
+                widget.attrs["class"] = "textarea w-full"
+            else:
+                widget.attrs["class"] = "input w-full"

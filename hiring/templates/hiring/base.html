@@ -25,8 +25,8 @@
       <aside class="w-64 min-h-full bg-base-100 border-r border-base-300 p-4 flex flex-col">
         <div class="font-bold text-lg px-2 mb-4">Applicant Tracking</div>
         <ul class="menu p-0 w-full">
-          <li><a href="{% url 'hiring:job_list' %}" class="{% if url_name == 'job_list' %}menu-active{% endif %}">Pipeline</a></li>
-          <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
+          <li><a href="{% url 'hiring:job_list' %}" class="{% if url_name == 'job_detail' %}menu-active{% endif %}">Pipeline</a></li>
+          <li><a href="{% url 'hiring:job_list' %}" class="{% if url_name == 'job_list' or url_name == 'job_create' or url_name == 'job_edit' %}menu-active{% endif %}">Jobs</a></li>
           <li><a href="{% url 'hiring:candidate_list' %}" class="{% if url_name|slice:':9' == 'candidate' %}menu-active{% endif %}">Candidates</a></li>
           <li><a href="{% url 'hiring:skill_list' %}" class="{% if url_name|slice:':5' == 'skill' %}menu-active{% endif %}">Skills</a></li>
         </ul>

@@ -2,12 +2,35 @@ from django.db.models import Q, Value
 from django.db.models.functions import Concat
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import CandidateForm, SkillForm
-from .models import Candidate, Skill
+from .forms import CandidateForm, JobOpeningForm, SkillForm
+from .models import Candidate, JobOpening, Skill
 
 
 def job_list(request):
-    return render(request, "hiring/job_list.html")
+    jobs = JobOpening.objects.all()
+    return render(request, "hiring/job_list.html", {"jobs": jobs})
+
+
+def job_create(request):
+    form = JobOpeningForm(request.POST or None)
+    if form.is_valid():
+        job = form.save()
+        return redirect(job)
+    return render(request, "hiring/job_form.html", {"form": form})
+
+
+def job_detail(request, pk):
+    job = get_object_or_404(JobOpening, pk=pk)
+    return render(request, "hiring/job_detail.html", {"job": job})
+
+
+def job_edit(request, pk):
+    job = get_object_or_404(JobOpening, pk=pk)
+    form = JobOpeningForm(request.POST or None, instance=job)
+    if form.is_valid():
+        form.save()
+        return redirect(job)
+    return render(request, "hiring/job_form.html", {"form": form, "job": job})
 
 
 def candidate_list(request):

@@ -1,0 +1,44 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}{% if job %}Edit {{ job.title }}{% else %}New job{% endif %} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <h1 class="text-2xl font-bold">{% if job %}Edit {{ job.title }}{% else %}New job{% endif %}</h1>
+
+  <form method="post" class="mt-6 bg-base-100 rounded-box border border-base-300 p-6 max-w-2xl" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div role="alert" class="alert alert-error text-sm mb-4">
+        {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+      </div>
+    {% endif %}
+    <div class="grid gap-x-4 sm:grid-cols-2">
+      {% for field in form %}
+        <fieldset class="fieldset{% if field.name == 'title' or field.name == 'description' or field.name == 'skills' %} sm:col-span-2{% endif %}">
+          {% if field.name == 'skills' %}
+            <legend class="fieldset-legend">Skills <span class="font-normal opacity-60">(optional)</span></legend>
+            {% if field.field.queryset.exists %}
+              <div class="grid gap-2 grid-cols-2 sm:grid-cols-3">
+                {% for checkbox in field %}
+                  <label class="label text-base-content cursor-pointer">{{ checkbox.tag }} {{ checkbox.choice_label }}</label>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-sm opacity-60">No skills yet. Add some on the <a href="{% url 'hiring:skill_list' %}" class="link">Skills page</a>.</p>
+            {% endif %}
+          {% else %}
+            <label class="fieldset-legend" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+          {% endif %}
+          {% for error in field.errors %}
+            <p class="text-error text-sm">{{ error }}</p>
+          {% endfor %}
+        </fieldset>
+      {% endfor %}
+    </div>
+    <div class="mt-6 flex gap-2">
+      <button type="submit" class="btn btn-primary">{% if job %}Save changes{% else %}Create job{% endif %}</button>
+      <a href="{% if job %}{{ job.get_absolute_url }}{% else %}{% url 'hiring:job_list' %}{% endif %}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

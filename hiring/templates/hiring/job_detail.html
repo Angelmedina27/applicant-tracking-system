@@ -1,0 +1,39 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}{{ job.title }} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="text-sm breadcrumbs">
+    <ul>
+      <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
+      <li>{{ job.title }}</li>
+    </ul>
+  </div>
+
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="text-2xl font-bold">{{ job.title }}</h1>
+        {% include "hiring/_job_status_badge.html" %}
+      </div>
+      <p class="opacity-70">{{ job.department }} · {{ job.location }}</p>
+    </div>
+    <a href="{% url 'hiring:job_edit' job.pk %}" class="btn btn-sm">Edit</a>
+  </div>
+
+  <div class="mt-4 flex flex-wrap gap-2" aria-label="Skills">
+    {% for skill in job.skills.all %}
+      <span class="badge badge-outline">{{ skill.name }}</span>
+    {% empty %}
+      <span class="text-sm opacity-60">No skills tagged.</span>
+    {% endfor %}
+  </div>
+
+  <div class="mt-6 bg-base-100 rounded-box border border-base-300 p-6 max-w-3xl">
+    <h2 class="text-sm opacity-60">Description</h2>
+    <p class="mt-1 whitespace-pre-line">{{ job.description }}</p>
+    <p class="mt-4 text-sm opacity-60">
+      Created {{ job.created_at|date:"M j, Y" }} · Last updated {{ job.updated_at|date:"M j, Y" }}
+    </p>
+  </div>
+{% endblock %}
