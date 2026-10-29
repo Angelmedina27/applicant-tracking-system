@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en" data-theme="corporate">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline Dashboard Variants</title>
+<!-- THROWAWAY PROTOTYPE: not production code. Three structural directions for the main pipeline screen.
+     Tailwind + DaisyUI are loaded from CDNs here only; production will use django-tailwind-cli. -->
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<style>
+  #switcher { position: fixed; right: 16px; bottom: 16px; z-index: 100; display: flex; align-items: center; gap: 8px;
+    background: #111; color: #fff; font: 13px/1.2 ui-monospace, Consolas, monospace; padding: 6px 8px; border-radius: 999px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+  #switcher button { background: #333; color: #fff; border: 0; border-radius: 999px; width: 28px; height: 28px; cursor: pointer; font-size: 15px; }
+  #switcher button:hover { background: #555; }
+  #switcher .hint { color: #999; }
+  @media (max-width: 520px) { #switcher .hint { display: none; } }
+</style>
+</head>
+<body class="bg-base-200 min-h-screen">
+<div id="app"></div>
+<div id="toast"></div>
+<div id="switcher">
+  <button id="prev" aria-label="Previous variant">‹</button>
+  <span id="variant-label"></span>
+  <button id="next" aria-label="Next variant">›</button>
+  <span class="hint">← → keys</span>
+</div>
+
+<script>
+// ---------- Domain rules (option C) and in-memory data ----------
+const STAGES = ['applied', 'screening', 'interview', 'final_review', 'offer', 'hired', 'rejected', 'withdrawn'];
+const PIPELINE = STAGES.slice(0, 6);
+const ACTIVE = STAGES.slice(0, 5);
+const EXITS = ['rejected', 'withdrawn'];
+const LABEL = { applied: 'Applied', screening: 'Screening', interview: 'Interview', final_review: 'Final Review',
+  offer: 'Offer', hired: 'Hired', rejected: 'Rejected', withdrawn: 'Withdrawn' };
+const BADGE = { applied: 'badge-ghost', screening: 'badge-info', interview: 'badge-primary', final_review: 'badge-secondary',
+  offer: 'badge-accent', hired: 'badge-success', rejected: 'badge-error', withdrawn: 'badge-neutral' };
+const TODAY = new Date(2026, 9, 29);
+const DAY = 86400000;
+
+function allowedMoves(stage) {
+  if (!ACTIVE.includes(stage)) return [];
+  const i = PIPELINE.indexOf(stage);
+  const moves = [{ to: PIPELINE[i + 1], kind: 'forward' }];
+  if (i > 0) moves.push({ to: PIPELINE[i - 1], kind: 'back' });
+  moves.push({ to: 'rejected', kind: 'reject' }, { to: 'withdrawn', kind: 'withdraw' });
+  return moves;
+}
+
+const JOBS = [
+  { id: 'j1', title: 'Backend Developer', dept: 'Engineering', location: 'Austin, TX · Hybrid', status: 'Open', skills: ['Python', 'Django', 'SQL'] },
+  { id: 'j2', title: 'Product Designer', dept: 'Design', location: 'Remote', status: 'Open', skills: ['Figma', 'User Research'] },
+  { id: 'j3', title: 'Data Analyst', dept: 'Analytics', location: 'Dallas, TX', status: 'Closed', skills: ['SQL', 'Excel', 'Tableau'] },
+];
+
+const STAFF = ['Maria Lopez', 'Dev Patel'];
+let nextId = 1;
+function seed(job, name, source, path, startDaysAgo) {
+  const email = name.toLowerCase().replace(/[^a-z ]/g, '').replace(' ', '.') + '@example.com';
+  const step = Math.max(1, Math.floor(startDaysAgo / (path.length + 1)));
+  const history = path.map((to, i) => ({ from: i ? path[i - 1] : null, to, by: STAFF[i % 2],
+    date: new Date(TODAY - (startDaysAgo - i * step) * DAY) }));
+  return { id: nextId++, job, name, email, source, stage: path[path.length - 1], history };
+}
+const P = (...s) => s;
+const APPS = [
+  seed('j1', 'Jane Doe', 'Job Board', P('applied'), 2),
+  seed('j1', 'Kevin O\'Brien', 'Company Website', P('applied'), 5),
+  seed('j1', 'Marcus Chen', 'Referral', P('applied', 'screening'), 9),
+  seed('j1', 'Priya Shah', 'Job Board', P('applied', 'screening', 'interview'), 16),
+  seed('j1', 'Luis Romero', 'Recruiter Outreach', P('applied', 'screening', 'interview'), 12),
+  seed('j1', 'Aisha Bello', 'Referral', P('applied', 'screening', 'interview', 'final_review'), 24),
+  seed('j1', 'Tom Becker', 'Career Fair', P('applied', 'screening', 'interview', 'final_review', 'offer'), 30),
+  seed('j1', 'Elena Petrova', 'Job Board', P('applied', 'screening', 'rejected'), 14),
+  seed('j2', 'Noah Kim', 'Job Board', P('applied'), 3),
+  seed('j2', 'Sofia Alvarez', 'Referral', P('applied', 'screening'), 8),
+  seed('j2', 'Grace Liu', 'Company Website', P('applied', 'screening', 'interview'), 15),
+  seed('j2', 'Omar Haddad', 'Job Board', P('applied', 'screening', 'interview', 'withdrawn'), 20),
+  seed('j2', 'Hannah Brooks', 'Referral', P('applied', 'screening', 'interview', 'final_review', 'offer', 'hired'), 40),
+  seed('j3', 'Ben Carter', 'Job Board', P('applied', 'screening', 'interview'), 25),
+  seed('j3', 'Chloe Martin', 'Referral', P('applied', 'screening', 'interview', 'final_review', 'offer'), 35),
+  seed('j3', 'Mia Johnson', 'Career Fair', P('applied', 'rejected'), 30),
+  seed('j3', 'Ravi Kumar', 'Job Board', P('applied', 'screening', 'interview', 'final_review', 'offer', 'hired'), 45),
+];
+
+// ---------- UI state ----------
+const VARIANTS = [
+  { key: 'A', name: 'Sidebar + table', render: renderA },
+  { key: 'B', name: 'Stage board', render: renderB },
+  { key: 'C', name: 'List / detail workspace', render: renderC },
+];
+const ui = { variant: 0, jobId: 'j1', filter: 'active', selected: null, search: '', toast: '' };
+try { const v = parseInt(localStorage.getItem('pipeline-variant'), 10); if (v >= 0 && v < VARIANTS.length) ui.variant = v; } catch (e) {}
+
+// ---------- Helpers ----------
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const job = () => JOBS.find((j) => j.id === ui.jobId);
+const jobApps = (id = ui.jobId) => APPS.filter((a) => a.job === id);
+const inStage = (stage, id) => jobApps(id).filter((a) => a.stage === stage);
+const activeCount = (id) => jobApps(id).filter((a) => ACTIVE.includes(a.stage)).length;
+const daysIn = (a) => Math.round((TODAY - a.history[a.history.length - 1].date) / DAY);
+const daysText = (a) => { const d = daysIn(a); return d === 0 ? 'today' : d === 1 ? '1 day' : `${d} days`; };
+const fmtDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const leftFrom = (a) => EXITS.includes(a.stage) ? a.history[a.history.length - 1].from : null;
+const badge = (stage, extra = '') => `<span class="badge ${BADGE[stage]} ${extra} whitespace-nowrap">${LABEL[stage]}</span>`;
+const statusBadge = (j) => `<span class="badge ${j.status === 'Open' ? 'badge-success' : 'badge-ghost'} badge-outline">${j.status}</span>`;
+const initials = (n) => n.split(' ').map((p) => p[0]).join('').slice(0, 2);
+
+function moveButton(a, m, size = 'btn-xs', short = false) {
+  const cls = { forward: 'btn-primary', back: 'btn-ghost', reject: 'btn-error btn-outline', withdraw: 'btn-ghost text-base-content/60' }[m.kind];
+  const text = short
+    ? { forward: `${LABEL[m.to]} →`, back: '←', reject: 'Reject', withdraw: 'Withdraw' }[m.kind]
+    : { forward: `Advance to ${LABEL[m.to]}`, back: `← Back to ${LABEL[m.to]}`, reject: 'Reject', withdraw: 'Withdraw' }[m.kind];
+  const title = m.kind === 'back' ? ` title="Back to ${LABEL[m.to]}"` : '';
+  return `<button class="btn ${size} ${cls}" data-move="${a.id}:${m.to}"${title}>${text}</button>`;
+}
+
+function addButton(size = 'btn-sm') {
+  const closed = job().status === 'Closed';
+  return closed
+    ? `<div class="tooltip tooltip-left" data-tip="This job is closed. Reopen it to add applications."><button class="btn ${size}" disabled>+ Add application</button></div>`
+    : `<button class="btn btn-primary ${size}" data-stub="Would open the Add application form for ${esc(job().title)}">+ Add application</button>`;
+}
+
+function closedNote() {
+  return job().status === 'Closed'
+    ? `<div role="alert" class="alert alert-warning py-2 text-sm my-4"><span>This job is closed to new applications. ${activeCount(ui.jobId)} active applications can still be moved.</span></div>`
+    : '';
+}
+
+// ---------- Variant A: sidebar + filterable table ----------
+function renderA() {
+  const j = job();
+  const apps = jobApps();
+  const tabs = [['active', 'Active', apps.filter((a) => ACTIVE.includes(a.stage)).length],
+    ...ACTIVE.map((s) => [s, LABEL[s], inStage(s).length]),
+    ['finished', 'Finished', apps.filter((a) => !ACTIVE.includes(a.stage)).length]];
+  const rows = apps.filter((a) => ui.filter === 'active' ? ACTIVE.includes(a.stage)
+    : ui.filter === 'finished' ? !ACTIVE.includes(a.stage) : a.stage === ui.filter)
+    .sort((x, y) => PIPELINE.indexOf(y.stage) - PIPELINE.indexOf(x.stage));
+
+  return `
+  <div class="drawer lg:drawer-open">
+    <input id="nav" type="checkbox" class="drawer-toggle">
+    <div class="drawer-content">
+      <div class="navbar bg-base-100 border-b border-base-300 lg:hidden">
+        <label for="nav" class="btn btn-ghost btn-sm">☰</label><span class="font-semibold ml-2">Applicant Tracking</span>
+      </div>
+      <main class="p-4 lg:p-8 max-w-6xl">
+        <div class="text-sm breadcrumbs"><ul><li>Jobs</li><li>${esc(j.title)}</li></ul></div>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 class="text-2xl font-bold flex items-center gap-3">${esc(j.title)} ${statusBadge(j)}</h1>
+            <p class="text-base-content/60 text-sm mt-1">${j.dept} · ${j.location} · Skills: ${j.skills.join(', ')}</p>
+          </div>
+          <div class="flex gap-2"><button class="btn btn-sm btn-ghost" data-stub="Would open the Edit job form">Edit job</button>${addButton()}</div>
+        </div>
+        ${closedNote()}
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 my-6">
+          ${ACTIVE.map((s) => `
+            <button data-filter="${s}" class="text-left bg-base-100 rounded-box p-4 border ${ui.filter === s ? 'border-primary' : 'border-base-300'} hover:border-primary">
+              <div class="text-xs text-base-content/60">${LABEL[s]}</div>
+              <div class="text-2xl font-bold">${inStage(s).length}</div>
+            </button>`).join('')}
+        </div>
+        <div role="tablist" class="tabs tabs-bordered mb-2 overflow-x-auto flex-nowrap">
+          ${tabs.map(([k, l, n]) => `<a role="tab" data-filter="${k}" class="tab whitespace-nowrap ${ui.filter === k ? 'tab-active' : ''}">${l} <span class="ml-1 text-xs opacity-60">${n}</span></a>`).join('')}
+        </div>
+        <div class="overflow-x-auto bg-base-100 rounded-box border border-base-300">
+          <table class="table">
+            <thead><tr><th>Candidate</th><th>Source</th><th>Stage</th><th>In stage</th><th>Move</th></tr></thead>
+            <tbody>
+              ${rows.length ? rows.map((a) => `
+                <tr class="hover">
+                  <td><div class="font-medium">${esc(a.name)}</div><div class="text-xs opacity-60">${esc(a.email)}</div></td>
+                  <td class="text-sm">${a.source}</td>
+                  <td>${badge(a.stage)}${leftFrom(a) ? `<div class="text-xs opacity-60 mt-1">from ${LABEL[leftFrom(a)]}</div>` : ''}</td>
+                  <td class="text-sm whitespace-nowrap">${daysText(a)}</td>
+                  <td><div class="flex flex-wrap gap-1">${allowedMoves(a.stage).map((m) => moveButton(a, m)).join('') || '<span class="text-xs opacity-60">Final</span>'}</div></td>
+                </tr>`).join('') : '<tr><td colspan="5" class="text-center opacity-60 py-8">No applications here.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+    <div class="drawer-side z-20">
+      <label for="nav" class="drawer-overlay"></label>
+      <aside class="w-64 min-h-full bg-base-100 border-r border-base-300 p-4">
+        <div class="font-bold text-lg px-2 mb-4">Applicant Tracking</div>
+        <ul class="menu p-0">
+          <li><a class="active">Pipeline</a></li><li><a>Jobs</a></li><li><a>Candidates</a></li><li><a>Skills</a></li>
+          <li class="menu-title mt-4">Jobs</li>
+          ${JOBS.map((x) => `<li><a data-job="${x.id}" class="${x.id === ui.jobId ? 'font-semibold bg-base-200' : ''}">
+            <span class="flex-1">${esc(x.title)}${x.status === 'Closed' ? ' <span class="opacity-50">(closed)</span>' : ''}</span>
+            <span class="badge badge-sm">${activeCount(x.id)}</span></a></li>`).join('')}
+        </ul>
+      </aside>
+    </div>
+  </div>`;
+}
+
+// ---------- Variant B: stage board (columns, buttons, no drag) ----------
+function renderB() {
+  const j = job();
+  const finished = jobApps().filter((a) => !ACTIVE.includes(a.stage));
+  return `
+  <div class="navbar bg-neutral text-neutral-content px-4 gap-2">
+    <span class="font-bold text-lg">ATS</span>
+    <div class="hidden sm:flex gap-1 ml-4"><a class="btn btn-ghost btn-sm">Pipeline</a><a class="btn btn-ghost btn-sm opacity-70">Candidates</a><a class="btn btn-ghost btn-sm opacity-70">Jobs</a><a class="btn btn-ghost btn-sm opacity-70">Skills</a></div>
+    <div class="flex-1"></div>
+    <select class="select select-sm text-base-content" data-jobselect>
+      ${JOBS.map((x) => `<option value="${x.id}" ${x.id === ui.jobId ? 'selected' : ''}>${esc(x.title)}${x.status === 'Closed' ? ' (closed)' : ''}</option>`).join('')}
+    </select>
+  </div>
+  <main class="p-4">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+      <div class="flex items-center gap-3 flex-wrap">
+        <h1 class="text-xl font-bold">${esc(j.title)}</h1>${statusBadge(j)}
+        <span class="text-sm opacity-60">${activeCount(j.id)} active · ${finished.length} finished</span>
+      </div>
+      ${addButton()}
+    </div>
+    ${closedNote()}
+    <div class="flex gap-3 overflow-x-auto pb-20 mt-4 items-start">
+      ${ACTIVE.map((s) => `
+        <section class="w-64 shrink-0 bg-base-300/60 rounded-box p-2">
+          <header class="flex items-center justify-between px-2 py-1 mb-1">
+            <span class="font-semibold text-sm">${LABEL[s]}</span><span class="badge badge-sm">${inStage(s).length}</span>
+          </header>
+          <div class="flex flex-col gap-2">
+            ${inStage(s).map((a) => `
+              <article class="bg-base-100 rounded-box p-3 shadow-sm">
+                <div class="font-medium">${esc(a.name)}</div>
+                <div class="text-xs opacity-60 mb-2">${a.source} · ${daysText(a)} here</div>
+                <div class="flex gap-1">${['back', 'forward'].flatMap((k) => allowedMoves(a.stage).filter((m) => m.kind === k)).map((m) => moveButton(a, m, 'btn-xs', true)).join('')}</div>
+                <div class="flex gap-1 mt-1">${allowedMoves(a.stage).filter((m) => EXITS.includes(m.to)).map((m) => moveButton(a, m, 'btn-xs', true)).join('')}</div>
+              </article>`).join('') || '<div class="text-xs opacity-50 text-center py-6">Empty</div>'}
+          </div>
+        </section>`).join('')}
+      <section class="w-56 shrink-0 bg-base-100 border border-dashed border-base-300 rounded-box p-3">
+        <header class="font-semibold text-sm mb-2 opacity-70">Finished</header>
+        ${['hired', 'rejected', 'withdrawn'].map((s) => `
+          <div class="mb-3"><div class="mb-1">${badge(s, 'badge-sm')}</div>
+            ${inStage(s).map((a) => `<div class="text-sm">${esc(a.name)}${leftFrom(a) ? ` <span class="opacity-50 text-xs">at ${LABEL[leftFrom(a)]}</span>` : ''}</div>`).join('') || '<div class="text-xs opacity-50">None</div>'}
+          </div>`).join('')}
+      </section>
+    </div>
+  </main>`;
+}
+
+// ---------- Variant C: list / detail workspace ----------
+function renderC() {
+  const j = job();
+  const q = ui.search.toLowerCase();
+  const apps = jobApps().filter((a) => a.name.toLowerCase().includes(q));
+  if (!jobApps().some((a) => a.id === ui.selected)) ui.selected = (jobApps().find((a) => ACTIVE.includes(a.stage)) || jobApps()[0] || {}).id;
+  const sel = APPS.find((a) => a.id === ui.selected);
+  const groups = [...ACTIVE, 'hired', 'rejected', 'withdrawn'].map((s) => [s, apps.filter((a) => a.stage === s)]).filter(([, l]) => l.length);
+  const curIdx = sel ? PIPELINE.indexOf(EXITS.includes(sel.stage) ? leftFrom(sel) : sel.stage) : -1;
+
+  return `
+  <header class="bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-4">
+    <span class="font-bold">Applicant Tracking</span>
+    <div role="tablist" class="tabs tabs-boxed tabs-sm overflow-x-auto flex-nowrap">
+      ${JOBS.map((x) => `<a role="tab" data-job="${x.id}" class="tab whitespace-nowrap ${x.id === ui.jobId ? 'tab-active' : ''}">${esc(x.title)}${x.status === 'Closed' ? ' · closed' : ''}</a>`).join('')}
+    </div>
+    <div class="flex-1"></div>${addButton('btn-sm')}
+  </header>
+  <div class="grid md:grid-cols-[320px_1fr] md:h-[calc(100vh-61px)]">
+    <aside class="bg-base-100 border-r border-base-300 md:overflow-y-auto">
+      <div class="p-3 border-b border-base-300"><input data-search class="input input-sm input-bordered w-full" placeholder="Search ${jobApps().length} applicants…" value="${esc(ui.search)}"></div>
+      ${groups.map(([s, list]) => `
+        <div class="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wide opacity-60">${LABEL[s]} · ${list.length}</div>
+        <ul>${list.map((a) => `
+          <li><button data-select="${a.id}" class="w-full text-left px-3 py-2 flex items-center gap-3 border-l-4 ${a.id === ui.selected ? 'border-primary bg-base-200' : 'border-transparent hover:bg-base-200'}">
+            <div class="avatar placeholder"><div class="bg-neutral text-neutral-content rounded-full w-8"><span class="text-xs">${initials(a.name)}</span></div></div>
+            <div class="flex-1 min-w-0"><div class="font-medium truncate">${esc(a.name)}</div><div class="text-xs opacity-60">${daysText(a)} in stage</div></div>
+          </button></li>`).join('')}</ul>`).join('') || '<p class="p-4 text-sm opacity-60">No matches.</p>'}
+    </aside>
+    <section class="p-4 md:p-8 md:overflow-y-auto">
+      ${!sel ? '<p class="opacity-60">No application selected.</p>' : `
+      ${closedNote()}
+      <div class="card bg-base-100 border border-base-300">
+        <div class="card-body">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 class="text-2xl font-bold">${esc(sel.name)}</h1>
+              <p class="text-sm opacity-70">${esc(sel.email)} · ${sel.source}</p>
+              <p class="text-sm opacity-70">Applying for <span class="font-medium">${esc(j.title)}</span></p>
+            </div>
+            <div class="text-right">${badge(sel.stage, 'badge-lg')}<div class="text-xs opacity-60 mt-1">${daysText(sel)} in stage</div></div>
+          </div>
+          <ul class="steps steps-vertical sm:steps-horizontal w-full my-4 text-xs">
+            ${PIPELINE.map((s, i) => `<li class="step ${i <= curIdx ? (EXITS.includes(sel.stage) && i === curIdx ? 'step-error' : 'step-primary') : ''}">${LABEL[s]}</li>`).join('')}
+          </ul>
+          ${EXITS.includes(sel.stage) ? `<p class="text-sm">${LABEL[sel.stage]} at ${LABEL[leftFrom(sel)]}. This is a final stage.</p>` : ''}
+          ${sel.stage === 'hired' ? '<p class="text-sm">Hired. This is a final stage.</p>' : ''}
+          <div class="flex flex-wrap gap-2">${allowedMoves(sel.stage).map((m) => moveButton(sel, m, 'btn-sm')).join('')}</div>
+        </div>
+      </div>
+      <div class="card bg-base-100 border border-base-300 mt-4">
+        <div class="card-body">
+          <h2 class="card-title text-base">Stage history</h2>
+          <ol class="relative border-l border-base-300 ml-2">
+            ${[...sel.history].reverse().map((h) => `
+              <li class="ml-4 mb-4">
+                <div class="absolute w-3 h-3 bg-primary rounded-full -left-1.5 mt-1.5"></div>
+                <div class="text-sm">${h.from ? `${LABEL[h.from]} → ` : ''}<span class="font-medium">${LABEL[h.to]}</span></div>
+                <div class="text-xs opacity-60">${fmtDate(h.date)} · ${esc(h.by)}</div>
+              </li>`).join('')}
+          </ol>
+        </div>
+      </div>`}
+    </section>
+  </div>`;
+}
+
+// ---------- Shell: render, events, switcher ----------
+let toastTimer;
+function showToast(text) {
+  ui.toast = text; clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { ui.toast = ''; renderToast(); }, 3500);
+  renderToast();
+}
+function renderToast() {
+  document.getElementById('toast').innerHTML = ui.toast
+    ? `<div class="toast toast-start z-50"><div class="alert alert-info text-sm py-2"><span>${esc(ui.toast)}</span></div></div>` : '';
+}
+
+function render() {
+  const v = VARIANTS[ui.variant];
+  document.getElementById('app').innerHTML = v.render();
+  document.getElementById('variant-label').textContent = `${v.key} · ${v.name}`;
+  try { localStorage.setItem('pipeline-variant', ui.variant); } catch (e) {}
+  renderToast();
+}
+
+function move(id, to) {
+  const a = APPS.find((x) => x.id === id);
+  if (!allowedMoves(a.stage).some((m) => m.to === to)) { showToast(`Blocked: ${LABEL[a.stage]} → ${LABEL[to]} is not allowed.`); return; }
+  a.history.push({ from: a.stage, to, by: 'You', date: new Date(TODAY) });
+  const from = a.stage; a.stage = to;
+  showToast(`${a.name}: ${LABEL[from]} → ${LABEL[to]} (saved to history)`);
+}
+
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-move],[data-job],[data-filter],[data-select],[data-stub]');
+  if (!t) return;
+  if (t.dataset.move) { const [id, to] = t.dataset.move.split(':'); move(+id, to); }
+  else if (t.dataset.job) { ui.jobId = t.dataset.job; ui.filter = 'active'; ui.search = ''; }
+  else if (t.dataset.filter) ui.filter = t.dataset.filter;
+  else if (t.dataset.select) ui.selected = +t.dataset.select;
+  else if (t.dataset.stub) { showToast(`Stub: ${t.dataset.stub}`); return; }
+  render();
+});
+document.addEventListener('change', (e) => {
+  if (e.target.matches('[data-jobselect]')) { ui.jobId = e.target.value; render(); }
+});
+document.addEventListener('input', (e) => {
+  if (!e.target.matches('[data-search]')) return;
+  ui.search = e.target.value; render();
+  const input = document.querySelector('[data-search]');
+  input.focus(); input.setSelectionRange(ui.search.length, ui.search.length);
+});
+function step(d) { ui.variant = (ui.variant + d + VARIANTS.length) % VARIANTS.length; render(); }
+document.getElementById('prev').onclick = () => step(-1);
+document.getElementById('next').onclick = () => step(1);
+document.addEventListener('keydown', (e) => {
+  if (e.target.closest('input, select, textarea')) return;
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'ArrowRight') step(1);
+});
+
+render();
+</script>
+</body>
+</html>

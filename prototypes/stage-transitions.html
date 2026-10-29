@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stage Transition Rules</title>
+<!-- THROWAWAY PROTOTYPE: not production code. Answers one question: which stage-move rules feel right? -->
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1f; --muted: #6b6b70; --line: #e3e3e0;
+    --accent: #2f5bd3; --accent-soft: #e8eefc; --ok: #1f7a4a; --ok-soft: #e6f4ec; --bad: #b42318; --bad-soft: #fdecea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151517; --panel: #1f1f22; --text: #ececee; --muted: #9a9aa2; --line: #333338;
+      --accent: #7c9dff; --accent-soft: #252d45; --ok: #5cc68d; --ok-soft: #1c3227; --bad: #ff8a80; --bad-soft: #3a2220;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; }
+  p { margin: 0 0 10px; }
+  .muted { color: var(--muted); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 20px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid > .panel { margin-top: 0; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  button { font: inherit; cursor: pointer; border-radius: 8px; padding: 7px 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
+  button:disabled { cursor: default; opacity: .45; }
+  .seg { display: flex; flex-wrap: wrap; gap: 8px; }
+  .seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rule-summary { margin-top: 12px; padding: 12px 14px; background: var(--accent-soft); border-radius: 8px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .pill.final { background: var(--line); color: var(--text); }
+  .banner { margin-top: 14px; padding: 10px 12px; border-radius: 8px; }
+  .banner.ok { background: var(--ok-soft); color: var(--ok); }
+  .banner.bad { background: var(--bad-soft); color: var(--bad); }
+  ol.history { margin: 8px 0 0; padding-left: 20px; max-height: 180px; overflow: auto; }
+  ol.history li.bad { color: var(--bad); }
+  .moves { display: flex; flex-wrap: wrap; gap: 8px; }
+  .moves button.allowed { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .moves button.blocked { color: var(--muted); border-style: dashed; }
+  .legend { font-size: 13px; margin-top: 10px; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: center; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  td.yes { color: var(--ok); font-weight: 700; }
+  td.no { color: var(--line); }
+  tr.current td { background: var(--accent-soft); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  .tabs button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .steps { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  .steps button.next { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .steps button.done-ok { border-color: var(--ok); color: var(--ok); }
+  .steps button.done-bad { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+  .watch { padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 8px 8px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Stage transition rules</h1>
+  <p class="muted">Prototype for the Applicant Tracking System. <strong>Question:</strong> when staff move an application between
+    hiring stages, which moves should be allowed? Pick one of the four options below, then click through the walkthroughs and
+    free-play to see which one matches how your hiring team actually works. Nothing here is saved.</p>
+
+  <section class="panel">
+    <h2>Option being tested</h2>
+    <div class="seg" id="rule-picker"></div>
+    <div class="rule-summary" id="rule-summary"></div>
+  </section>
+
+  <div class="grid" style="margin-top:20px">
+    <section class="panel">
+      <h2>The application right now</h2>
+      <div id="state"></div>
+    </section>
+    <section class="panel">
+      <h2>Free play: try any move</h2>
+      <p class="muted">Solid buttons are allowed under this option. Dashed ones are blocked. Click them anyway to see why.</p>
+      <div class="moves" id="moves"></div>
+      <div class="moves" style="margin-top:10px" id="extra"></div>
+      <p class="legend muted">"Reopen" sends a Rejected or Withdrawn application back to the stage it left.</p>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Guided walkthroughs</h2>
+    <div class="tabs" id="tabs"></div>
+    <div id="scenario"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Every allowed move under this option</h2>
+    <p class="muted">Rows are where the application is now, and columns are where staff try to move it. ✓ means allowed. The highlighted row is the current stage.</p>
+    <div class="table-wrap" id="matrix"></div>
+  </section>
+</main>
+
+<script>
+// ---------- Pure logic: no DOM in here ----------
+const Rules = (() => {
+  const PIPELINE = ['applied', 'screening', 'interview', 'final_review', 'offer', 'hired'];
+  const EXITS = ['rejected', 'withdrawn'];
+  const STAGES = [...PIPELINE, ...EXITS];
+  const FINAL = ['hired', ...EXITS];
+  const LABEL = {
+    applied: 'Applied', screening: 'Screening', interview: 'Interview', final_review: 'Final Review',
+    offer: 'Offer', hired: 'Hired', rejected: 'Rejected', withdrawn: 'Withdrawn',
+  };
+  const OPTIONS = {
+    A: { name: 'A. Free movement', summary: 'Any stage can move to any other stage. Nothing is ever blocked.' },
+    B: { name: 'B. Strict forward', summary: 'One step forward at a time, or Rejected/Withdrawn from any active stage. No going back. Hired, Rejected and Withdrawn are final.' },
+    C: { name: 'C. Forward or back one step', summary: 'Like B, but staff can also step back one stage to fix a mistake. Hired, Rejected and Withdrawn are final.' },
+    D: { name: 'D. C + reopen', summary: 'Like C, but a Rejected or Withdrawn application can be reopened, back to the stage it left. Hired is still final.' },
+  };
+  const L = (s) => LABEL[s];
+
+  function newApplication() {
+    return { candidate: 'Jane Doe', job: 'Backend Developer', stage: 'applied', leftFrom: null, history: [] };
+  }
+
+  // Returns null when allowed, otherwise a plain-language reason.
+  function checkMove(rule, app, to) {
+    const from = app.stage;
+    if (to === from) return `It's already at ${L(from)}.`;
+    if (rule === 'A') return null;
+    if (FINAL.includes(from)) {
+      if (rule === 'D' && EXITS.includes(from)) return `${L(from)} applications can only be reopened (back to ${L(app.leftFrom)}). Use "Reopen".`;
+      return `${L(from)} is a final stage. Nothing can change after that under this option.`;
+    }
+    if (EXITS.includes(to)) return null;
+    const i = PIPELINE.indexOf(from), j = PIPELINE.indexOf(to);
+    if (j === i + 1) return null;
+    if (j > i + 1) return `Stages can't be skipped. From ${L(from)} the only step forward is ${L(PIPELINE[i + 1])}.`;
+    if (rule === 'B') return `Applications can't move backward under this option.`;
+    if (j === i - 1) return null;
+    return `You can only step back one stage at a time, to ${L(PIPELINE[i - 1])}.`;
+  }
+
+  function checkReopen(rule, app) {
+    if (!EXITS.includes(app.stage)) return 'Only Rejected or Withdrawn applications can be reopened.';
+    if (!app.leftFrom) return 'There is no earlier stage on record to go back to.';
+    if (rule === 'A' || rule === 'D') return null;
+    return `This option has no reopen. ${L(app.stage)} is final.`;
+  }
+
+  function describe(action) {
+    return action.type === 'reopen' ? 'Reopen' : `Move to ${L(action.to)}`;
+  }
+
+  // (rule, app, action) -> { app, ok, reason, text }
+  function apply(rule, app, action) {
+    const from = app.stage;
+    let reason, to;
+    if (action.type === 'reopen') { reason = checkReopen(rule, app); to = app.leftFrom; }
+    else { reason = checkMove(rule, app, action.to); to = action.to; }
+    if (reason) {
+      const text = `Blocked: ${describe(action)}. ${reason}`;
+      return { ok: false, reason, text, app: { ...app, history: [...app.history, { ok: false, text }] } };
+    }
+    let leftFrom = app.leftFrom;
+    if (EXITS.includes(to) && !EXITS.includes(from)) leftFrom = from;
+    else if (!EXITS.includes(to)) leftFrom = null;
+    const text = action.type === 'reopen' ? `Reopened: ${L(from)} → ${L(to)}` : `Moved ${L(from)} → ${L(to)}`;
+    return { ok: true, reason: null, text, app: { ...app, stage: to, leftFrom, history: [...app.history, { ok: true, text }] } };
+  }
+
+  function run(rule, actions) {
+    let app = newApplication(), blocked = 0;
+    for (const a of actions) { const r = apply(rule, app, a); if (!r.ok) blocked++; app = r.app; }
+    return { app, blocked };
+  }
+
+  return { PIPELINE, EXITS, STAGES, FINAL, LABEL, OPTIONS, newApplication, checkMove, checkReopen, apply, run, describe };
+})();
+
+// ---------- Scenarios (domain language) ----------
+const mv = (to) => ({ type: 'move', to });
+const SCENARIOS = [
+  {
+    id: 'happy', title: 'Happy path',
+    description: 'Jane goes through every stage and gets hired.',
+    watch: 'Every option should allow this. If one blocks it, it is broken.',
+    steps: [mv('screening'), mv('interview'), mv('final_review'), mv('offer'), mv('hired')],
+  },
+  {
+    id: 'misclick', title: 'Mis-click fix',
+    description: 'A recruiter means to reject Jane at Screening but clicks "advance" by accident. They try to step back and then reject her.',
+    watch: 'Under B the undo is blocked, so Jane ends up recorded as rejected at Interview, which is wrong. Under C and D the undo works.',
+    steps: [mv('screening'), mv('interview'), mv('screening'), mv('rejected')],
+  },
+  {
+    id: 'skip', title: 'Internal referral skips ahead',
+    description: 'Jane is a strong internal referral, and the hiring manager wants her straight in an Interview, skipping Screening.',
+    watch: 'Only A allows this. Under B, C and D staff would have to click through Screening first. Is that acceptable to your team?',
+    steps: [mv('interview')],
+  },
+  {
+    id: 'comeback', title: 'Withdraws, then comes back',
+    description: 'Jane gets an offer, withdraws to take another job, and a week later asks to come back. The team wants to resume at Offer and hire her.',
+    watch: 'Only A and D can reopen. Under B and C you would need a brand-new application, which the "one application per job" rule would block.',
+    steps: [mv('screening'), mv('interview'), mv('final_review'), mv('offer'), mv('withdrawn'), { type: 'reopen' }, mv('hired')],
+  },
+  {
+    id: 'unhire', title: 'Change a hire',
+    description: 'Jane is marked Hired, then the background check fails. Someone tries to move her back to Offer, then to Rejected.',
+    watch: 'A allows both. B, C and D lock Hired, so this case needs another plan (e.g. a superuser fixing it in the admin).',
+    steps: [mv('screening'), mv('interview'), mv('final_review'), mv('offer'), mv('hired'), mv('offer'), mv('rejected')],
+  },
+  {
+    id: 'nonsense', title: 'Straight to Hired',
+    description: 'Someone hires Jane directly from Applied, with no screening or interview.',
+    watch: 'A allows it, so reports could show hires that never interviewed. B, C and D block it.',
+    steps: [mv('hired')],
+  },
+];
+
+// ---------- Page shell ----------
+let rule = 'C';
+let app = Rules.newApplication();
+let last = null;
+let tab = SCENARIOS[0].id;
+let stepIndex = 0;
+let stepResults = [];
+
+const $ = (id) => document.getElementById(id);
+
+function dispatch(action) {
+  const r = Rules.apply(rule, app, action);
+  app = r.app; last = r;
+  return r;
+}
+
+function startScenario(id) {
+  tab = id; stepIndex = 0; stepResults = [];
+  app = Rules.newApplication(); last = null;
+  render();
+}
+
+function render() {
+  // Rule picker
+  $('rule-picker').innerHTML = '';
+  for (const [id, o] of Object.entries(Rules.OPTIONS)) {
+    const b = document.createElement('button');
+    b.textContent = o.name; if (id === rule) b.className = 'on';
+    b.onclick = () => { rule = id; render(); };
+    $('rule-picker').append(b);
+  }
+  $('rule-summary').textContent = Rules.OPTIONS[rule].summary;
+
+  // State
+  const isFinal = Rules.FINAL.includes(app.stage);
+  $('state').innerHTML = `
+    <dl>
+      <dt>Candidate</dt><dd>${app.candidate}</dd>
+      <dt>Job</dt><dd>${app.job}</dd>
+      <dt>Stage</dt><dd><span class="pill ${isFinal ? 'final' : ''}">${Rules.LABEL[app.stage]}</span>${isFinal ? ' <span class="muted">(final stage)</span>' : ''}</dd>
+      <dt>Left from</dt><dd>${app.leftFrom ? Rules.LABEL[app.leftFrom] : '<span class="muted">n/a</span>'}</dd>
+    </dl>
+    ${last ? `<div class="banner ${last.ok ? 'ok' : 'bad'}">${last.text}</div>` : ''}
+    <p class="muted" style="margin:14px 0 0">History</p>
+    ${app.history.length
+      ? `<ol class="history">${app.history.map(h => `<li class="${h.ok ? '' : 'bad'}">${h.text}</li>`).join('')}</ol>`
+      : '<p class="muted">No moves yet.</p>'}`;
+
+  // Free play
+  $('moves').innerHTML = '';
+  for (const s of Rules.STAGES) {
+    if (s === app.stage) continue;
+    const b = document.createElement('button');
+    b.textContent = Rules.LABEL[s];
+    b.className = Rules.checkMove(rule, app, s) ? 'blocked' : 'allowed';
+    b.onclick = () => { dispatch({ type: 'move', to: s }); render(); };
+    $('moves').append(b);
+  }
+  $('extra').innerHTML = '';
+  const reopen = document.createElement('button');
+  reopen.textContent = app.leftFrom && Rules.EXITS.includes(app.stage) ? `Reopen → ${Rules.LABEL[app.leftFrom]}` : 'Reopen';
+  reopen.className = Rules.checkReopen(rule, app) ? 'blocked' : 'allowed';
+  reopen.onclick = () => { dispatch({ type: 'reopen' }); render(); };
+  const reset = document.createElement('button');
+  reset.textContent = 'Start over (new application)';
+  reset.onclick = () => { app = Rules.newApplication(); last = null; stepIndex = 0; stepResults = []; render(); };
+  $('extra').append(reopen, reset);
+
+  // Tabs + scenario
+  $('tabs').innerHTML = '';
+  for (const s of SCENARIOS) {
+    const b = document.createElement('button');
+    b.textContent = s.title; if (s.id === tab) b.className = 'on';
+    b.onclick = () => startScenario(s.id);
+    $('tabs').append(b);
+  }
+  const sc = SCENARIOS.find(s => s.id === tab);
+  const outcomes = Object.keys(Rules.OPTIONS).map(id => {
+    const r = Rules.run(id, sc.steps);
+    return `<tr${id === rule ? ' class="current"' : ''}><td>${Rules.OPTIONS[id].name}</td><td>${Rules.LABEL[r.app.stage]}</td><td>${r.blocked}</td></tr>`;
+  }).join('');
+  $('scenario').innerHTML = `
+    <p style="margin-top:14px">${sc.description}</p>
+    <p class="watch"><strong>Watch for:</strong> ${sc.watch}</p>
+    <p class="muted" style="margin-top:12px">Press the steps in order (starts from a fresh application at Applied):</p>
+    <div class="steps" id="steps"></div>
+    <p class="muted">How each option ends up:</p>
+    <div class="table-wrap"><table><tr><th>Option</th><th>Final stage</th><th>Steps blocked</th></tr>${outcomes}</table></div>`;
+  sc.steps.forEach((a, i) => {
+    const b = document.createElement('button');
+    b.textContent = `${i + 1}. ${Rules.describe(a)}`;
+    if (i < stepIndex) b.className = stepResults[i] ? 'done-ok' : 'done-bad';
+    else if (i === stepIndex) b.className = 'next';
+    b.disabled = i !== stepIndex;
+    b.onclick = () => { stepResults[i] = dispatch(a).ok; stepIndex++; render(); };
+    $('steps').append(b);
+  });
+  const restart = document.createElement('button');
+  restart.textContent = 'Restart';
+  restart.onclick = () => startScenario(tab);
+  $('steps').append(restart);
+
+  // Matrix
+  let html = '<table><tr><th>From \\ To</th>' + Rules.STAGES.map(s => `<th>${Rules.LABEL[s]}</th>`).join('') + '<th>Reopen</th></tr>';
+  for (const from of Rules.STAGES) {
+    const probe = { ...Rules.newApplication(), stage: from, leftFrom: Rules.EXITS.includes(from) ? 'interview' : null };
+    html += `<tr${from === app.stage ? ' class="current"' : ''}><td>${Rules.LABEL[from]}</td>`;
+    for (const to of Rules.STAGES) {
+      if (to === from) { html += '<td class="no">·</td>'; continue; }
+      html += Rules.checkMove(rule, probe, to) ? '<td class="no">·</td>' : '<td class="yes">✓</td>';
+    }
+    html += Rules.checkReopen(rule, probe) ? '<td class="no">·</td>' : '<td class="yes">✓</td>';
+    html += '</tr>';
+  }
+  $('matrix').innerHTML = html + '</table>';
+}
+
+render();
+</script>
+</body>
+</html>
