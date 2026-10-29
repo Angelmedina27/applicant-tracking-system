@@ -25,6 +25,7 @@ urlpatterns = [
         views.application_create_for_candidate,
         name="application_create_for_candidate",
     ),
+    path("applications/<int:pk>/move/", views.application_move, name="application_move"),
     path("skills/", views.skill_list, name="skill_list"),
     path("skills/<int:pk>/delete/", views.skill_delete, name="skill_delete"),
 ]

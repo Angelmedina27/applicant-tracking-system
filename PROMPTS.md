@@ -28,6 +28,54 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 7 (stage moves via HTMX on the job page)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 7`
+2. Yes, I approve *(TDD behaviors: the transition function returns the right moves for every stage; an allowed move updates the stage, writes a `StageChange` with the right user and from/to stages, and returns the pipeline partial; a disallowed or malformed move returns a 4xx and changes nothing. HTMX is vendored into `assets/js/` instead of loaded from a CDN)*
+3. Yes, I approve *(RED test for behavior 1)*
+4. Yes, I approve *(behavior 1 green; continue to the endpoint, partial and HTMX)*
+5. Yes, I approve *(RED test for behavior 2)*
+6. Yes, I approve continue to behavior 3
+7. Yes, I approve *(RED test for behavior 3)*
+8. Yes, I approve *(continue with the remaining tests and Ruff)*
+9. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - `allowed_moves(stage)` in `hiring/models.py` is the one pure transition function. It works from a `PIPELINE` list (Applied → … → Offer → Hired) and returns forward, back (if any), Rejected and Withdrawn for active stages, and nothing for final stages.
+  - `Application.available_moves` exposes those moves to templates. `Application.move_to(to_stage, by=)` raises `InvalidMove` for a disallowed move. Otherwise it saves the stage change and its `StageChange` in one transaction.
+  - The stage update is conditional on the stored stage still matching (`filter(pk, stage).update(...)`), so the second of two simultaneous moves is refused instead of writing duplicate history.
+  - New POST-only route `/applications/<pk>/move/`:
+    - a value that isn't a stage returns 400;
+    - a move that isn't allowed returns 409;
+    - an HTMX request gets back the `_pipeline.html` partial;
+    - a plain form post redirects to the job page.
+  - The job page's applications table moved into `hiring/_pipeline.html` (`<section id="pipeline">`, swapped with `outerHTML`). Each row has a form with only its allowed buttons: "Advance to X", "Back to X", Reject and Withdraw. Finished rows show "Final". A refused move pops an alert and leaves the table untouched.
+  - HTMX 2.0.4 is downloaded to `assets/js/htmx.min.js` and loaded in `base.html`. `<body>` sets `hx-headers` with the CSRF token.
+  - Three TDD behaviors went red → green, with 18 parametrized cases. Seven normal tests cover:
+    - GET returning 405;
+    - login required;
+    - the non-HTMX redirect;
+    - the stale concurrent move;
+    - moves on a closed job;
+    - row buttons for Applied and Hired rows;
+    - forward and back buttons mid-pipeline.
+  - All 115 tests, Ruff lint and Ruff format pass, and no migration was needed. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Claude made choices that aren't in the plan:
+    - Refusal status codes: 400 for an unknown stage, 409 for a disallowed one.
+    - The concurrent-move guard.
+    - The non-HTMX redirect fallback.
+    - The `alert()` on a refused move.
+    - The button labels and the "Final" placeholder.
+    - Vendoring HTMX instead of using a CDN.
+- **Sideways:**
+  - After behavior 1, Claude wrote the full `move_to` validation and the view's error handling before writing behavior 2's test. That would have made behaviors 2 and 3 pass without ever going red. Claude caught it, cut `move_to` back to a stub and removed the view validation, so both behaviors got a real assertion failure at RED.
+  - The first view draft used `request.htmx`, which needs django-htmx (not installed). It was replaced with a check of the `HX-Request` header in the same cleanup.
+  - A first draft of the mid-pipeline button test rendered the partial with a bare `RequestFactory` request. That crashed in the sidebar context processor (no `request.user`). It was rewritten to load the real job page through the logged-in client.
+
 ## 2026-10-29 — Implemented Phase 6 (apply from the candidate page)
 
 ### Prompts

@@ -1,10 +1,12 @@
 from django.db import IntegrityError
 from django.db.models import Max, Q, Value
 from django.db.models.functions import Concat
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from .forms import ApplicationForm, CandidateForm, JobOpeningForm, SkillForm
-from .models import Application, Candidate, JobOpening, Skill
+from .models import Application, Candidate, InvalidMove, JobOpening, Skill
 
 
 def job_list(request):
@@ -22,10 +24,14 @@ def job_create(request):
 
 def job_detail(request, pk):
     job = get_object_or_404(JobOpening, pk=pk)
+    return render(request, "hiring/job_detail.html", _pipeline_context(job))
+
+
+def _pipeline_context(job):
     applications = job.applications.select_related("candidate").annotate(
         stage_since=Max("stage_changes__changed_at")
     )
-    return render(request, "hiring/job_detail.html", {"job": job, "applications": applications})
+    return {"job": job, "applications": applications}
 
 
 def job_edit(request, pk):
@@ -66,6 +72,21 @@ def _create_application(request, form, fixed, context):
         "has_choices": form.fields[form.choice_name].queryset.exists(),
     }
     return render(request, "hiring/application_form.html", context)
+
+
+@require_POST
+def application_move(request, pk):
+    application = get_object_or_404(Application.objects.select_related("job"), pk=pk)
+    to_stage = request.POST.get("to_stage", "")
+    if to_stage not in Application.Stage.values:
+        return HttpResponseBadRequest("Unknown stage.")
+    try:
+        application.move_to(to_stage, by=request.user)
+    except InvalidMove as error:
+        return HttpResponse(str(error), status=409)
+    if not request.headers.get("HX-Request"):
+        return redirect(application.job)
+    return render(request, "hiring/_pipeline.html", _pipeline_context(application.job))
 
 
 def candidate_list(request):

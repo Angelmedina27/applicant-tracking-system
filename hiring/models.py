@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models, transaction
 from django.db.models.functions import Lower
 from django.urls import reverse
+from django.utils import timezone
 
 
 class Candidate(models.Model):
@@ -148,6 +149,49 @@ class Application(models.Model):
             application = cls.objects.create(candidate=candidate, job=job)
             application.stage_changes.create(to_stage=cls.Stage.APPLIED, changed_by=by)
         return application
+
+    @property
+    def available_moves(self):
+        return allowed_moves(self.stage)
+
+    def move_to(self, to_stage, *, by):
+        """Move to `to_stage` and record the history entry, or raise InvalidMove.
+
+        The update only matches while the stored stage is still the one we checked,
+        so a concurrent move from the same stage can't also succeed.
+        """
+        if to_stage not in self.available_moves:
+            raise InvalidMove(f"Can't move from {self.get_stage_display()} to {to_stage!r}.")
+        with transaction.atomic():
+            moved = Application.objects.filter(pk=self.pk, stage=self.stage).update(
+                stage=to_stage, updated_at=timezone.now()
+            )
+            if not moved:
+                raise InvalidMove("This application was moved by someone else.")
+            self.stage_changes.create(from_stage=self.stage, to_stage=to_stage, changed_by=by)
+        self.refresh_from_db()
+
+
+class InvalidMove(Exception):
+    pass
+
+
+PIPELINE = [*Application.ACTIVE_STAGES, Application.Stage.HIRED]
+
+
+def allowed_moves(stage):
+    """Return the stages an application at `stage` may move to.
+
+    From an active stage: one step forward, one step back (if any), Rejected and
+    Withdrawn. Hired, Rejected and Withdrawn are final and allow no moves.
+    """
+    if stage not in PIPELINE[:-1]:
+        return []
+    index = PIPELINE.index(stage)
+    moves = [PIPELINE[index + 1]]
+    if index > 0:
+        moves.append(PIPELINE[index - 1])
+    return moves + [Application.Stage.REJECTED, Application.Stage.WITHDRAWN]
 
 
 class StageChange(models.Model):
