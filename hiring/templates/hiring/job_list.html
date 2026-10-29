@@ -12,7 +12,7 @@
     <div class="mt-6 overflow-x-auto bg-base-100 rounded-box border border-base-300">
       <table class="table">
         <thead>
-          <tr><th>Title</th><th>Department</th><th class="hidden sm:table-cell">Location</th><th>Status</th></tr>
+          <tr><th>Title</th><th>Department</th><th class="hidden sm:table-cell">Location</th><th>Status</th><th class="text-right">Active</th></tr>
         </thead>
         <tbody>
           {% for job in jobs %}
@@ -21,6 +21,7 @@
               <td>{{ job.department }}</td>
               <td class="hidden sm:table-cell">{{ job.location }}</td>
               <td>{% include "hiring/_job_status_badge.html" %}</td>
+              <td class="text-right tabular-nums">{{ job.active_count }}</td>
             </tr>
           {% endfor %}
         </tbody>

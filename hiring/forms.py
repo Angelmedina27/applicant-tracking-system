@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Candidate, JobOpening, Skill
+from .models import Application, Candidate, JobOpening, Skill
 
 
 class CandidateForm(forms.ModelForm):
@@ -74,3 +74,26 @@ class JobOpeningForm(forms.ModelForm):
                 widget.attrs["class"] = "textarea w-full"
             else:
                 widget.attrs["class"] = "input w-full"
+
+
+class ApplicationForm(forms.ModelForm):
+    class Meta:
+        model = Application
+        fields = ["candidate"]
+
+    def __init__(self, *args, job, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.job = job
+        candidate = self.fields["candidate"]
+        candidate.queryset = Candidate.objects.exclude(applications__job=job)
+        candidate.label_from_instance = lambda c: f"{c.full_name} ({c.email})"
+        candidate.error_messages["invalid_choice"] = (
+            "That candidate can't be added. They may have already applied to this job."
+        )
+        candidate.widget.attrs["class"] = "select w-full"
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if self.instance.job.status != JobOpening.Status.OPEN:
+            raise forms.ValidationError("This job is closed, so it can't take new applications.")
+        return cleaned_data

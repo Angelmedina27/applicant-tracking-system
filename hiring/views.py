@@ -1,13 +1,14 @@
-from django.db.models import Q, Value
+from django.db import IntegrityError
+from django.db.models import Max, Q, Value
 from django.db.models.functions import Concat
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import CandidateForm, JobOpeningForm, SkillForm
-from .models import Candidate, JobOpening, Skill
+from .forms import ApplicationForm, CandidateForm, JobOpeningForm, SkillForm
+from .models import Application, Candidate, JobOpening, Skill
 
 
 def job_list(request):
-    jobs = JobOpening.objects.all()
+    jobs = JobOpening.objects.with_active_count()
     return render(request, "hiring/job_list.html", {"jobs": jobs})
 
 
@@ -21,7 +22,10 @@ def job_create(request):
 
 def job_detail(request, pk):
     job = get_object_or_404(JobOpening, pk=pk)
-    return render(request, "hiring/job_detail.html", {"job": job})
+    applications = job.applications.select_related("candidate").annotate(
+        stage_since=Max("stage_changes__changed_at")
+    )
+    return render(request, "hiring/job_detail.html", {"job": job, "applications": applications})
 
 
 def job_edit(request, pk):
@@ -31,6 +35,24 @@ def job_edit(request, pk):
         form.save()
         return redirect(job)
     return render(request, "hiring/job_form.html", {"form": form, "job": job})
+
+
+def application_create_for_job(request, pk):
+    job = get_object_or_404(JobOpening, pk=pk)
+    form = ApplicationForm(request.POST or None, job=job)
+    if form.is_valid():
+        try:
+            Application.start(candidate=form.cleaned_data["candidate"], job=job, by=request.user)
+        except IntegrityError:
+            form.add_error("candidate", "This candidate has already applied to this job.")
+        else:
+            return redirect(job)
+    has_choices = form.fields["candidate"].queryset.exists()
+    return render(
+        request,
+        "hiring/application_form.html",
+        {"form": form, "job": job, "has_choices": has_choices},
+    )
 
 
 def candidate_list(request):

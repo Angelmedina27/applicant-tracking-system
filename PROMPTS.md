@@ -28,6 +28,56 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 5 (add an application from the job page)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 5`
+2. Yes I approve *(TDD behaviors: adding an application from the job page creates it at Applied with exactly one initial `StageChange` recording the user; a duplicate is refused at the form and at the database; a submit against a closed job is refused and creates nothing)*
+3. Yes, I approve it *(RED test for behavior 1)*
+4. Yes, move on to behavior 2
+5. Yes, I approve it *(RED test for behavior 2)*
+6. Yes, move on to behavior 3
+7. Yes, I approve it *(RED test for behavior 3)*
+8. Yes, continue with the rest of phase 5
+9. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - The `Application` model links a candidate (CASCADE) and a job (PROTECT), and has a stage from the eight-choice `Stage` list (default Applied), an `ACTIVE_STAGES` list and timestamps. It has a `UniqueConstraint` on (candidate, job).
+  - The `StageChange` model has application (CASCADE), a blank-able `from_stage`, `to_stage`, `changed_by` user (PROTECT) and `changed_at`. Both models are in migration `0004_application_stagechange`.
+  - `Application.start(candidate=, job=, by=)` creates the application and its initial `StageChange` in one `transaction.atomic()`.
+  - The shared `ApplicationForm` (job fixed for now) lists only candidates without an application to that job, labelled "Name (email)". Its `clean()` refuses closed jobs. The view turns an `IntegrityError` from a simultaneous submit into a candidate-field error.
+  - `/jobs/<pk>/applications/new/` shows the form, a closed-job warning, or a "no candidates available" hint.
+  - The job page has an "Add application" button only while the job is Open, and an applications table with name, email, source, stage and time in stage. Time in stage comes from the newest `StageChange`.
+  - `JobOpening.objects.with_active_count()` annotates `active_count`. The job list has a new Active column, and a `sidebar_jobs` context processor lists every job with its count under Pipeline, highlighting the current job.
+  - Three TDD behaviors went red → green. Fifteen normal tests cover:
+    - the simultaneous-submit race;
+    - choice labels;
+    - the closed-job and no-candidates form pages, and the closed message showing once;
+    - a blank candidate submit;
+    - the Add button showing only on open jobs;
+    - the table contents and time in stage (from the latest change), and its empty state;
+    - active counts on the list and sidebar, with finished stages left out;
+    - the sidebar on other pages and the current-job highlight;
+    - login required and the 404;
+    - the `on_delete` rules.
+  - All 78 tests, Ruff lint and Ruff format pass. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Excluding archived candidates from the choices was left to Phase 10, as the plan says, even though the `archived` flag already exists.
+  - Claude made choices that aren't in the plan:
+    - Creation lives in an `Application.start` classmethod rather than in `form.save()`.
+    - A stale choice shows "That candidate can't be added. They may have already applied to this job." instead of Django's default invalid-choice message.
+    - The sidebar dims closed jobs, and the Pipeline link is also active on the add-application page.
+    - Time in stage is computed from `Max(stage_changes__changed_at)` rather than stored on the application.
+- **Sideways:**
+  - The models were scaffolded without the unique constraint so behavior 2 got a real red. Migration `0004` was then deleted and regenerated with the constraint. It was never committed.
+  - Behavior 2's form-level assertions already passed at RED, because the scaffolded candidate queryset refuses a stale choice. Only the database assertion was red, and Claude said so when presenting it.
+  - Claude's first try at adding `Application.start` used a Python string replace that silently missed on the CRLF file with a non-ASCII `→`. The GREEN run failed with an `AttributeError`, and the change was redone with the Edit tool.
+  - A first fix to the form template left an empty `{% if %}` branch and then an invalid `{% with %}` line. The template was rewritten in full, with `has_choices` passed from the view.
+  - A bash heredoc holding the normal tests failed to parse and wrote nothing, so the test file was written with the Write tool instead.
+  - One normal test posted `{}`, which the `request.POST or None` pattern treats as an unbound form. It was changed to post `{"candidate": ""}`, as a browser does.
+
 ## 2026-10-29 — Implemented Phase 4 (jobs CRUD with skills)
 
 ### Prompts
