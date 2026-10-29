@@ -28,6 +28,40 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Wrote CLAUDE.md and implemented Phase 1 (project skeleton, login, app shell)
+
+### Prompts
+1. Create the initial CLAUDE.md for this project. *(about 20–30 lines: one-line description, stack and package manager, durable PRD architecture decisions, pointers to the PRD, plan and prototypes; no commands, predicted paths, URL or testing conventions, business rules or new conventions)*
+2. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 1`
+3. Yes I approve them. *(TDD behaviors: anonymous job list redirects to login; `/` redirects to the job list)*
+4. Yes, I approve it. *(RED test for behavior 1)*
+5. Switch to the middleware option. *(replace per-view `@login_required` with Django's `LoginRequiredMiddleware`)*
+6. Yes, I approve it. *(RED test for behavior 2)*
+7. Yes continue with the rest of phase 1
+8. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - Wrote a 26-line `CLAUDE.md` (committed separately as `cbf1e9a`).
+  - Phase 1 built:
+    - uv project on Python 3.14, Django 6.1, the `config` package and the `hiring` app.
+    - Tailwind + DaisyUI via django-tailwind-cli (CLI pinned to 2.10.34, `corporate` theme).
+    - Ruff and pytest + pytest-django, with `staff_user` and `staff_client` fixtures.
+  - Login is required site-wide through `LoginRequiredMiddleware`. Login and logout use Django's auth views, and logout is POST-only.
+  - Variant A sidebar layout, collapsing to a ☰ drawer on small screens. `/` redirects to a placeholder job list.
+  - Two TDD behaviors went red → green. Seven normal tests cover the login page, login landing, inactive users, the sidebar and logout form, POST-only logout, ending the session, and the admin's own login.
+  - All 9 tests, Ruff lint and Ruff format pass. I verified the phase manually in the browser.
+- **Deviations:**
+  - After behavior 1 went green with `@login_required`, Claude pointed out that the decorator only protects views that remember to use it. I chose its recommended switch to `LoginRequiredMiddleware`.
+  - Claude asked whether `config`/`hiring` in CLAUDE.md counted as "predicted structure". I didn't answer, so the bullet stayed.
+  - Candidates and Skills appear in the sidebar but are disabled, because their pages arrive in Phases 2 and 3. Claude decided this; it is not in the plan.
+- **Sideways:**
+  - The first RED for behavior 1 failed with a 404 because `/jobs/` didn't exist yet. Claude treated that as missing scaffolding, added an unprotected route, and got a real red (200 instead of 302) before asking for approval.
+  - The first login template used DaisyUI 4 classes (`form-control`, `input-bordered`) that DaisyUI 5 removed. Claude caught this before building and switched to `fieldset`.
+  - Ruff flagged unused imports in the `startapp` stubs (`models.py`, `admin.py`), and Claude emptied them.
+  - Git Bash mangled `/` in the curl output during the dev-server smoke test. This was cosmetic, and the redirects were correct.
+  - Claude's first attempt to add this entry missed its anchor in PROMPTS.md because of wrong indentation, and it was redone.
+
 ## 2026-10-29 — Grilled the project idea, prototyped stage rules and pipeline UI, wrote the PRD
 
 ### Prompts

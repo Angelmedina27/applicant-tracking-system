@@ -1,0 +1,32 @@
+{% load tailwind_cli %}
+<!DOCTYPE html>
+<html lang="en" data-theme="corporate">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · Applicant Tracking</title>
+  {% tailwind_css %}
+</head>
+<body class="bg-base-200 min-h-screen flex items-center justify-center p-4">
+  <div class="card bg-base-100 border border-base-300 w-full max-w-sm">
+    <form method="post" action="{% url 'login' %}" class="card-body">
+      {% csrf_token %}
+      <h1 class="card-title text-2xl">Applicant Tracking</h1>
+      <p class="text-sm opacity-70">Staff sign-in</p>
+      {% if form.non_field_errors %}
+        <div role="alert" class="alert alert-error text-sm">
+          {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+        </div>
+      {% endif %}
+      <fieldset class="fieldset">
+        <label class="fieldset-legend" for="id_username">Username</label>
+        <input type="text" name="username" id="id_username" class="input w-full" value="{{ form.username.value|default:'' }}" autocomplete="username" autofocus required>
+        <label class="fieldset-legend" for="id_password">Password</label>
+        <input type="password" name="password" id="id_password" class="input w-full" autocomplete="current-password" required>
+      </fieldset>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="btn btn-primary mt-2">Log in</button>
+    </form>
+  </div>
+</body>
+</html>
