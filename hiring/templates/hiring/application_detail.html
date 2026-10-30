@@ -1,0 +1,37 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}{{ application.candidate.full_name }} · {{ application.job.title }} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="text-sm breadcrumbs">
+    <ul>
+      <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
+      <li><a href="{{ application.job.get_absolute_url }}">{{ application.job.title }}</a></li>
+      <li>{{ application.candidate.full_name }}</li>
+    </ul>
+  </div>
+
+  <h1 class="text-2xl font-bold">{{ application.candidate.full_name }}</h1>
+  <p class="opacity-70">Application for {{ application.job.title }}</p>
+
+  <div class="mt-6 grid gap-4 md:grid-cols-2 max-w-4xl">
+    <div class="bg-base-100 rounded-box border border-base-300 p-6">
+      <h2 class="text-sm opacity-60">Candidate</h2>
+      <p class="mt-1"><a href="{{ application.candidate.get_absolute_url }}" class="link link-hover font-medium">{{ application.candidate.full_name }}</a></p>
+      <p class="text-sm break-all">{{ application.candidate.email }}</p>
+      {% if application.candidate.phone %}<p class="text-sm">{{ application.candidate.phone }}</p>{% endif %}
+      <p class="mt-2 text-sm opacity-70">Source: {{ application.candidate.get_source_display }}{% if application.candidate.source_details %} · {{ application.candidate.source_details }}{% endif %}</p>
+    </div>
+    <div class="bg-base-100 rounded-box border border-base-300 p-6">
+      <h2 class="text-sm opacity-60">Job</h2>
+      <p class="mt-1 flex flex-wrap items-center gap-2">
+        <a href="{{ application.job.get_absolute_url }}" class="link link-hover font-medium">{{ application.job.title }}</a>
+        {% include "hiring/_job_status_badge.html" with job=application.job %}
+      </p>
+      <p class="text-sm">{{ application.job.department }} · {{ application.job.location }}</p>
+      <p class="mt-2 text-sm opacity-70">Applied {{ application.created_at|date:"M j, Y" }}</p>
+    </div>
+  </div>
+
+  {% include "hiring/_application_stage.html" %}
+{% endblock %}

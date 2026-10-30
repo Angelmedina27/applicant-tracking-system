@@ -28,6 +28,53 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 8 (pipeline counts, filters and application timeline)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 8`
+2. Yes, I approve *(TDD behaviors: the count cards and filter tabs show correct counts, with Finished = Hired + Rejected + Withdrawn; a move keeps the selected filter and drops an applicant who no longer belongs in it; the application page shows the full stage history, newest first)*
+3. Yes, I approve *(RED test for behavior 1)*
+4. Yes, I approve *(behavior 1 green; continue to behavior 2)*
+5. Yes, I approve *(RED test for behavior 2)*
+6. Yes, I approve *(behavior 2 green; continue to behavior 3)*
+7. Yes, I approve go ahead and make it pass *(RED test for behavior 3)*
+8. Yes, I approve go ahead with the rest of the phase
+9. It passed *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - `_pipeline_context(job, current)` runs one grouped stage-count query and builds five count cards (Applied → Offer) plus tabs for Active, each stage and Finished. A `PIPELINE_FILTERS` map gives each filter's stages, and an unknown `?stage=` value falls back to Active. Cards and tabs link to `?stage=<filter>`.
+  - `Application.FINISHED_STAGES` was added next to `ACTIVE_STAGES`.
+  - Each move form sends the current filter as a hidden `stage` field. The move endpoint re-renders the pipeline section with that filter. A non-HTMX move redirects to `?stage=<filter>`, or to the plain job URL for Active.
+  - The new `ApplicationQuerySet.with_stage_details()` annotates `stage_since` and `left_from` (the latest change's from-stage) using subqueries. It replaces three copies of the old `Max(...)` annotation. `Application.left_from_display` shows "from <stage>" for Rejected and Withdrawn on the job, candidate and application pages.
+  - New page `/applications/<pk>/`:
+    - candidate and job cards;
+    - a stage panel with the current stage, time in stage and move buttons;
+    - a newest-first timeline with "From → To" or "Created at Applied", who made the change (full name, or username if none) and the local time.
+  - A move on the application page posts `return_to=application` and re-renders `_application_stage.html` (the stage panel and timeline) in place.
+  - The move buttons moved into a shared `_move_buttons.html` partial, used by both pages. The stage badges on the job and candidate pages link to the application page, and Pipeline in the sidebar is highlighted on application pages.
+  - Three TDD behaviors went red → green, and eight normal tests cover:
+    - the card links;
+    - the default and unknown filters;
+    - the Finished tab with "left from";
+    - the application page's content;
+    - the HTMX move and the non-HTMX move from the application page;
+    - login required;
+    - links from the job and candidate pages to the application page.
+  - All 126 tests, Ruff lint and Ruff format pass, and no migration was needed. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Claude made choices that aren't in the plan:
+    - The job page now defaults to the Active tab, so finished applications appear only under Finished.
+    - The `return_to=application` field tells the move endpoint which partial to send back.
+    - Links to the application page are on the stage badges.
+    - The table's empty state reads "No applications in this filter." when the job does have applications.
+- **Sideways:**
+  - Claude edited files with Python scripts that used the Windows default encoding, so a search string containing `→` didn't match and the `get_absolute_url` edit silently failed. Behavior 3's test then failed with an `AttributeError` instead of an assertion. Claude checked that the earlier edits were intact, redid the edit with UTF-8, and got a proper assertion failure at RED.
+  - Behavior 2 made one existing test weaker: "Hired rows show no move buttons" passed only because Hired rows are no longer on the default page. The new Finished-tab test covers it properly.
+  - An existing Phase 7 test checked the exact list of rendered templates and broke when the shared button partial was added. It was changed to check only the top-level template.
+  - Ruff flagged a `zip()` call without `strict=`, and two files needed formatting. Both were fixed before the final run.
+
 ## 2026-10-29 — Implemented Phase 7 (stage moves via HTMX on the job page)
 
 ### Prompts

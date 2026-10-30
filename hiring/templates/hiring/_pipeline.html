@@ -1,6 +1,24 @@
 <section id="pipeline" class="mt-8" aria-labelledby="applications-heading"
          hx-on::response-error="alert('That move is no longer allowed. Reload the page to see the current stage.')">
   <h2 id="applications-heading" class="text-lg font-semibold">Applications</h2>
+  <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" aria-label="Active stage counts">
+    {% for card in cards %}
+      <a href="{{ job.get_absolute_url }}?stage={{ card.value }}" data-card="{{ card.value }}"
+         class="bg-base-100 rounded-box border p-4 hover:border-primary {% if card.selected %}border-primary{% else %}border-base-300{% endif %}">
+        <div class="text-sm opacity-70">{{ card.label }}</div>
+        <div class="text-2xl font-bold" data-count>{{ card.count }}</div>
+      </a>
+    {% endfor %}
+  </div>
+  <div role="tablist" class="mt-4 tabs tabs-box overflow-x-auto flex-nowrap">
+    {% for tab in tabs %}
+      <a role="tab" href="{{ job.get_absolute_url }}?stage={{ tab.value }}" data-tab="{{ tab.value }}"
+         class="tab whitespace-nowrap gap-2{% if tab.selected %} tab-active{% endif %}"
+         aria-selected="{% if tab.selected %}true{% else %}false{% endif %}">
+        {{ tab.label }} <span class="badge badge-sm" data-count>{{ tab.count }}</span>
+      </a>
+    {% endfor %}
+  </div>
   {% if applications %}
     <div class="mt-3 overflow-x-auto bg-base-100 rounded-box border border-base-300">
       <table class="table">
@@ -15,30 +33,15 @@
                 <div class="text-sm opacity-60 break-all">{{ application.candidate.email }}</div>
               </td>
               <td class="hidden md:table-cell">{{ application.candidate.get_source_display }}</td>
-              <td><span class="badge badge-sm badge-outline whitespace-nowrap">{{ application.get_stage_display }}</span></td>
+              <td>
+                <a href="{{ application.get_absolute_url }}" title="View application and history"><span class="badge badge-sm badge-outline whitespace-nowrap hover:badge-primary">{{ application.get_stage_display }}</span></a>
+                {% if application.left_from_display %}
+                  <div class="text-xs opacity-60 whitespace-nowrap">from {{ application.left_from_display }}</div>
+                {% endif %}
+              </td>
               <td class="whitespace-nowrap">{{ application.stage_since|timesince }}</td>
               <td>
-                {% if application.available_moves %}
-                  <form method="post" action="{% url 'hiring:application_move' application.pk %}"
-                        hx-post="{% url 'hiring:application_move' application.pk %}"
-                        hx-target="#pipeline" hx-swap="outerHTML"
-                        class="flex flex-wrap gap-1">
-                    {% csrf_token %}
-                    {% for move in application.available_moves %}
-                      {% if move == 'rejected' %}
-                        <button type="submit" name="to_stage" value="{{ move }}" class="btn btn-xs btn-error btn-outline">Reject</button>
-                      {% elif move == 'withdrawn' %}
-                        <button type="submit" name="to_stage" value="{{ move }}" class="btn btn-xs btn-ghost">Withdraw</button>
-                      {% elif forloop.first %}
-                        <button type="submit" name="to_stage" value="{{ move }}" class="btn btn-xs btn-primary">Advance to {{ move.label }}</button>
-                      {% else %}
-                        <button type="submit" name="to_stage" value="{{ move }}" class="btn btn-xs">Back to {{ move.label }}</button>
-                      {% endif %}
-                    {% endfor %}
-                  </form>
-                {% else %}
-                  <span class="text-sm opacity-60">Final</span>
-                {% endif %}
+                {% include "hiring/_move_buttons.html" with target="#pipeline" size="btn-xs" %}
               </td>
             </tr>
           {% endfor %}
@@ -47,7 +50,7 @@
     </div>
   {% else %}
     <div class="mt-3 bg-base-100 rounded-box border border-base-300 p-8 text-center opacity-60">
-      No applications yet.
+      {% if total %}No applications in this filter.{% else %}No applications yet.{% endif %}
     </div>
   {% endif %}
 </section>

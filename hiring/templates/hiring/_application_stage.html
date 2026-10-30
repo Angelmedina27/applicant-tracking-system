@@ -1,0 +1,35 @@
+<section id="application-stage" class="max-w-4xl"
+         hx-on::response-error="alert('That move is no longer allowed. Reload the page to see the current stage.')">
+  <div class="mt-4 bg-base-100 rounded-box border border-base-300 p-6" aria-labelledby="stage-heading">
+    <h2 id="stage-heading" class="text-sm opacity-60">Current stage</h2>
+    <div class="mt-1 flex flex-wrap items-center gap-3">
+      <span class="badge badge-lg badge-outline">{{ application.get_stage_display }}</span>
+      {% if application.left_from_display %}
+        <span class="text-sm opacity-70">from {{ application.left_from_display }}</span>
+      {% endif %}
+      <span class="text-sm opacity-70">for {{ application.stage_since|timesince }}</span>
+    </div>
+    <div class="mt-4">
+      {% include "hiring/_move_buttons.html" with target="#application-stage" return_to="application" size="btn-sm" %}
+    </div>
+  </div>
+
+  <h2 id="history-heading" class="mt-8 text-lg font-semibold">Stage history</h2>
+  <ol class="mt-3 space-y-3 max-w-2xl" aria-labelledby="history-heading">
+    {% for change in stage_changes %}
+      <li data-stage-change class="bg-base-100 rounded-box border border-base-300 p-4">
+        <div class="font-medium">
+          {% if change.from_stage %}
+            {{ change.get_from_stage_display }} → {{ change.get_to_stage_display }}
+          {% else %}
+            Created at {{ change.get_to_stage_display }}
+          {% endif %}
+        </div>
+        <div class="text-sm opacity-70">
+          {{ change.changed_by.get_full_name|default:change.changed_by.get_username }} ·
+          <time datetime="{{ change.changed_at|date:'c' }}">{{ change.changed_at|date:"M j, Y, g:i a" }}</time>
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+</section>

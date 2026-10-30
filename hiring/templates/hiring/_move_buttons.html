@@ -1,0 +1,27 @@
+{% comment %}
+Move buttons for `application`, one per allowed move. `target` is the element the
+response replaces; `current` (job page filter) or `return_to` say which partial comes back.
+{% endcomment %}
+{% if application.available_moves %}
+  <form method="post" action="{% url 'hiring:application_move' application.pk %}"
+        hx-post="{% url 'hiring:application_move' application.pk %}"
+        hx-target="{{ target }}" hx-swap="outerHTML"
+        class="flex flex-wrap gap-1">
+    {% csrf_token %}
+    {% if current %}<input type="hidden" name="stage" value="{{ current }}">{% endif %}
+    {% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
+    {% for move in application.available_moves %}
+      {% if move == 'rejected' %}
+        <button type="submit" name="to_stage" value="{{ move }}" class="btn {{ size }} btn-error btn-outline">Reject</button>
+      {% elif move == 'withdrawn' %}
+        <button type="submit" name="to_stage" value="{{ move }}" class="btn {{ size }} btn-ghost">Withdraw</button>
+      {% elif forloop.first %}
+        <button type="submit" name="to_stage" value="{{ move }}" class="btn {{ size }} btn-primary">Advance to {{ move.label }}</button>
+      {% else %}
+        <button type="submit" name="to_stage" value="{{ move }}" class="btn {{ size }}">Back to {{ move.label }}</button>
+      {% endif %}
+    {% endfor %}
+  </form>
+{% else %}
+  <span class="text-sm opacity-60">Final</span>
+{% endif %}

@@ -104,6 +104,19 @@ class JobOpening(models.Model):
         return reverse("hiring:job_detail", args=[self.pk])
 
 
+class ApplicationQuerySet(models.QuerySet):
+    def with_stage_details(self):
+        """Annotate `stage_since`, when the current stage began, and `left_from`,
+        the stage before the latest move (where a Rejected or Withdrawn one left off)."""
+        latest = StageChange.objects.filter(application=models.OuterRef("pk")).order_by(
+            "-changed_at", "-pk"
+        )
+        return self.annotate(
+            stage_since=models.Subquery(latest.values("changed_at")[:1]),
+            left_from=models.Subquery(latest.values("from_stage")[:1]),
+        )
+
+
 class Application(models.Model):
     class Stage(models.TextChoices):
         APPLIED = "applied", "Applied"
@@ -122,12 +135,15 @@ class Application(models.Model):
         Stage.FINAL_REVIEW,
         Stage.OFFER,
     ]
+    FINISHED_STAGES = [Stage.HIRED, Stage.REJECTED, Stage.WITHDRAWN]
 
     candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE, related_name="applications")
     job = models.ForeignKey(JobOpening, on_delete=models.PROTECT, related_name="applications")
     stage = models.CharField(max_length=20, choices=Stage, default=Stage.APPLIED)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ApplicationQuerySet.as_manager()
 
     class Meta:
         ordering = ["-created_at"]
@@ -142,6 +158,9 @@ class Application(models.Model):
     def __str__(self):
         return f"{self.candidate} → {self.job}"
 
+    def get_absolute_url(self):
+        return reverse("hiring:application_detail", args=[self.pk])
+
     @classmethod
     def start(cls, *, candidate, job, by):
         """Create an application at Applied together with its initial history entry."""
@@ -149,6 +168,13 @@ class Application(models.Model):
             application = cls.objects.create(candidate=candidate, job=job)
             application.stage_changes.create(to_stage=cls.Stage.APPLIED, changed_by=by)
         return application
+
+    @property
+    def left_from_display(self):
+        """For Rejected or Withdrawn, the stage it left from; needs `with_stage_details()`."""
+        if self.stage in (self.Stage.REJECTED, self.Stage.WITHDRAWN) and self.left_from:
+            return self.Stage(self.left_from).label
+        return ""
 
     @property
     def available_moves(self):

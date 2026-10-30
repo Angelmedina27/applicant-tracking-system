@@ -27,7 +27,7 @@
         <div class="font-bold text-lg px-2 mb-4">Applicant Tracking</div>
         <ul class="menu p-0 w-full">
           <li>
-            <a href="{% url 'hiring:job_list' %}" class="{% if url_name == 'job_detail' or url_name == 'application_create_for_job' %}menu-active{% endif %}">Pipeline</a>
+            <a href="{% url 'hiring:job_list' %}" class="{% if url_name == 'job_detail' or url_name == 'application_create_for_job' or url_name == 'application_detail' %}menu-active{% endif %}">Pipeline</a>
             {% if sidebar_jobs %}
               <ul aria-label="Jobs with active applications">
                 {% for sidebar_job in sidebar_jobs %}

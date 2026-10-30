@@ -1,5 +1,5 @@
 from django.db import IntegrityError
-from django.db.models import Max, Q, Value
+from django.db.models import Count, Q, Value
 from django.db.models.functions import Concat
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -24,14 +24,51 @@ def job_create(request):
 
 def job_detail(request, pk):
     job = get_object_or_404(JobOpening, pk=pk)
-    return render(request, "hiring/job_detail.html", _pipeline_context(job))
+    current = _pipeline_filter(request.GET.get("stage"))
+    return render(request, "hiring/job_detail.html", _pipeline_context(job, current))
 
 
-def _pipeline_context(job):
-    applications = job.applications.select_related("candidate").annotate(
-        stage_since=Max("stage_changes__changed_at")
+PIPELINE_FILTERS = {
+    "active": Application.ACTIVE_STAGES,
+    **{stage.value: [stage] for stage in Application.ACTIVE_STAGES},
+    "finished": Application.FINISHED_STAGES,
+}
+
+
+def _pipeline_filter(value):
+    """Return the requested pipeline filter, falling back to Active when unknown."""
+    return value if value in PIPELINE_FILTERS else "active"
+
+
+def _pipeline_context(job, current):
+    applications = (
+        job.applications.filter(stage__in=PIPELINE_FILTERS[current])
+        .select_related("candidate")
+        .with_stage_details()
     )
-    return {"job": job, "applications": applications}
+    stage_counts = dict(job.applications.order_by().values_list("stage").annotate(Count("pk")))
+    cards = [
+        {"value": stage.value, "label": stage.label, "count": stage_counts.get(stage, 0)}
+        for stage in Application.ACTIVE_STAGES
+    ]
+    total = sum(stage_counts.values())
+    active = sum(card["count"] for card in cards)
+    finished = total - active
+    tabs = [
+        {"value": "active", "label": "Active", "count": active},
+        *cards,
+        {"value": "finished", "label": "Finished", "count": finished},
+    ]
+    for tab in tabs:
+        tab["selected"] = tab["value"] == current
+    return {
+        "job": job,
+        "applications": applications,
+        "cards": cards,
+        "tabs": tabs,
+        "total": total,
+        "current": current,
+    }
 
 
 def job_edit(request, pk):
@@ -74,6 +111,22 @@ def _create_application(request, form, fixed, context):
     return render(request, "hiring/application_form.html", context)
 
 
+def application_detail(request, pk):
+    application = get_object_or_404(Application, pk=pk)
+    return render(request, "hiring/application_detail.html", _application_context(application))
+
+
+def _application_context(application):
+    """Re-read the application with its stage details for the stage panel and timeline."""
+    application = (
+        Application.objects.select_related("candidate", "job")
+        .with_stage_details()
+        .get(pk=application.pk)
+    )
+    stage_changes = application.stage_changes.select_related("changed_by")
+    return {"application": application, "stage_changes": stage_changes}
+
+
 @require_POST
 def application_move(request, pk):
     application = get_object_or_404(Application.objects.select_related("job"), pk=pk)
@@ -84,9 +137,15 @@ def application_move(request, pk):
         application.move_to(to_stage, by=request.user)
     except InvalidMove as error:
         return HttpResponse(str(error), status=409)
+    if request.POST.get("return_to") == "application":
+        if not request.headers.get("HX-Request"):
+            return redirect(application)
+        return render(request, "hiring/_application_stage.html", _application_context(application))
+    current = _pipeline_filter(request.POST.get("stage"))
     if not request.headers.get("HX-Request"):
-        return redirect(application.job)
-    return render(request, "hiring/_pipeline.html", _pipeline_context(application.job))
+        url = application.job.get_absolute_url()
+        return redirect(url if current == "active" else f"{url}?stage={current}")
+    return render(request, "hiring/_pipeline.html", _pipeline_context(application.job, current))
 
 
 def candidate_list(request):
@@ -109,9 +168,7 @@ def candidate_create(request):
 
 def candidate_detail(request, pk):
     candidate = get_object_or_404(Candidate, pk=pk)
-    applications = candidate.applications.select_related("job").annotate(
-        stage_since=Max("stage_changes__changed_at")
-    )
+    applications = candidate.applications.select_related("job").with_stage_details()
     return render(
         request,
         "hiring/candidate_detail.html",

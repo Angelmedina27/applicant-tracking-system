@@ -46,7 +46,7 @@ def test_allowed_move_updates_stage_records_history_and_returns_pipeline_section
     assert (latest.from_stage, latest.to_stage) == (Stage.APPLIED, Stage.SCREENING)
     assert latest.changed_by == staff_user
     assert response.status_code == 200
-    assert [t.name for t in response.templates] == ["hiring/_pipeline.html"]
+    assert response.templates[0].name == "hiring/_pipeline.html"
     html = response.content.decode()
     assert '<section id="pipeline"' in html
     assert ">Screening</span>" in html

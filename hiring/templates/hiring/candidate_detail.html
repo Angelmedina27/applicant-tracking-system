@@ -64,7 +64,12 @@
                   <a href="{{ application.job.get_absolute_url }}" class="link link-hover font-medium">{{ application.job.title }}</a>
                   <div class="text-sm opacity-60">{{ application.job.department }} · {{ application.job.location }}</div>
                 </td>
-                <td><span class="badge badge-sm badge-outline">{{ application.get_stage_display }}</span></td>
+                <td>
+                  <a href="{{ application.get_absolute_url }}" title="View application and history"><span class="badge badge-sm badge-outline whitespace-nowrap hover:badge-primary">{{ application.get_stage_display }}</span></a>
+                  {% if application.left_from_display %}
+                    <div class="text-xs opacity-60 whitespace-nowrap">from {{ application.left_from_display }}</div>
+                  {% endif %}
+                </td>
                 <td class="whitespace-nowrap">{{ application.stage_since|timesince }}</td>
               </tr>
             {% endfor %}
