@@ -80,6 +80,19 @@ def job_edit(request, pk):
     return render(request, "hiring/job_form.html", {"form": form, "job": job})
 
 
+def job_status(request, pk):
+    """Confirm and save a job's new status. Applications are never touched."""
+    job = get_object_or_404(JobOpening.objects.with_active_count(), pk=pk)
+    if request.method == "POST":
+        status = request.POST.get("status", "")
+        if status not in JobOpening.Status.values:
+            return HttpResponseBadRequest("Unknown status.")
+        job.status = status
+        job.save(update_fields=["status", "updated_at"])
+        return redirect(job)
+    return render(request, "hiring/job_status.html", {"job": job})
+
+
 def application_create_for_job(request, pk):
     job = get_object_or_404(JobOpening, pk=pk)
     form = ApplicationForm(request.POST or None, job=job)

@@ -28,6 +28,56 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-29 — Implemented Phase 9 (close and reopen jobs)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 9`
+2. Yes I approve them *(TDD behaviors: posting `status=closed` closes an open job, redirects to its page and leaves every application's stage and history unchanged; posting `status=open` reopens a closed job; the close confirmation shows how many applications are still active, counting only active stages)*
+3. Yes, I approve them *(RED test for behavior 1)*
+4. Yes, move onto behavior 2
+5. Yes, I approve it *(RED test for behavior 2)*
+6. Yes, move onto behavior 3
+7. Yes, I approve it *(RED test for behavior 3)*
+8. Yes, continue with the rest of phase 9
+9. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - New route `/jobs/<pk>/status/` (`job_status` view):
+    - GET shows a confirmation page;
+    - POST saves the posted target status (`open` or `closed`) and redirects to the job page;
+    - any other value returns 400 and changes nothing.
+  - The view loads the job through `JobOpening.objects.with_active_count()`, the same count as the job list and sidebar, and never touches applications.
+  - `job_status.html`:
+    - When closing, it explains that existing applications can still be moved and shows a warning such as "2 applications are still active". The wording is singular for one, and the page says "No applications are active" when there are none.
+    - When reopening, it just asks for confirmation.
+    - Both versions have breadcrumbs and Cancel.
+  - The job page has a "Close job" or "Reopen job" button. A closed job shows an info notice saying it can't take new applications but existing ones can still be moved. "Add application" was already hidden on closed jobs. Pipeline stays highlighted in the sidebar on the status page.
+  - Three TDD behaviors went red → green, and ten normal test functions (13 test cases) cover:
+    - unknown and missing status;
+    - the close page's button, Cancel link and "none active" text;
+    - the singular warning;
+    - the reopen page having no warning;
+    - the job page's Close/Reopen links and the closed notice;
+    - a reopened job accepting applications again;
+    - the sidebar highlight;
+    - the 404;
+    - login required for GET and POST.
+  - Moves on a closed job were already tested in Phase 7, and the closed-job submit refusal in Phase 5, so they weren't re-tested.
+  - All 141 tests, Ruff lint and Ruff format pass, and no migration was needed. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Claude made choices that aren't in the plan:
+    - The POST carries the target status instead of toggling, so a double-submit can't flip the job back.
+    - Reopening also goes through the confirmation page.
+    - An unknown status gets a 400.
+    - The wording of the closed-job notice and the warning.
+- **Sideways:**
+  - Behavior 1's GREEN deliberately set every job to Closed regardless of the posted value. That was the minimum the test needed, and it left behavior 2 (reopen) a real assertion failure at RED.
+  - After behavior 2, the view saved `request.POST["status"]` without validation. Claude flagged this gap, and it was closed in the normal tests with the 400 check.
+  - Behavior 3 matches the full sentence "2 applications are still active" rather than the bare number, because the sidebar already shows the same count for the job.
+  - Ruff reformatted the new test file once. There were no lint errors.
+
 ## 2026-10-29 — Implemented Phase 8 (pipeline counts, filters and application timeline)
 
 ### Prompts

@@ -1,0 +1,39 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}{% if job.status == 'open' %}Close{% else %}Reopen{% endif %} {{ job.title }} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="text-sm breadcrumbs">
+    <ul>
+      <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
+      <li><a href="{{ job.get_absolute_url }}">{{ job.title }}</a></li>
+      <li>{% if job.status == 'open' %}Close{% else %}Reopen{% endif %}</li>
+    </ul>
+  </div>
+
+  <div class="mt-2 bg-base-100 rounded-box border border-base-300 p-6 max-w-xl">
+    {% if job.status == 'open' %}
+      <h1 class="text-2xl font-bold">Close “{{ job.title }}”?</h1>
+      <p class="mt-2">A closed job can’t take new applications. Applications already on it keep their stages and can still be moved.</p>
+      {% with count=job.active_count %}
+        {% if count %}
+          <div role="alert" class="alert alert-warning text-sm mt-4">{{ count }} application{{ count|pluralize }} {{ count|pluralize:"is,are" }} still active.</div>
+        {% else %}
+          <p class="mt-4 text-sm opacity-70">No applications are active.</p>
+        {% endif %}
+      {% endwith %}
+    {% else %}
+      <h1 class="text-2xl font-bold">Reopen “{{ job.title }}”?</h1>
+      <p class="mt-2">The job will accept new applications again.</p>
+    {% endif %}
+    <form method="post" action="{% url 'hiring:job_status' job.pk %}" class="mt-6 flex gap-2">
+      {% csrf_token %}
+      {% if job.status == 'open' %}
+        <button type="submit" name="status" value="closed" class="btn btn-warning">Close job</button>
+      {% else %}
+        <button type="submit" name="status" value="open" class="btn btn-primary">Reopen job</button>
+      {% endif %}
+      <a href="{{ job.get_absolute_url }}" class="btn btn-ghost">Cancel</a>
+    </form>
+  </div>
+{% endblock %}

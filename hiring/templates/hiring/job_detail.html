@@ -23,8 +23,13 @@
         <a href="{% url 'hiring:application_create_for_job' job.pk %}" class="btn btn-primary btn-sm">Add application</a>
       {% endif %}
       <a href="{% url 'hiring:job_edit' job.pk %}" class="btn btn-sm">Edit</a>
+      <a href="{% url 'hiring:job_status' job.pk %}" class="btn btn-sm">{% if job.status == 'open' %}Close job{% else %}Reopen job{% endif %}</a>
     </div>
   </div>
+
+  {% if job.status == 'closed' %}
+    <div role="alert" class="alert alert-info text-sm mt-4">This job is closed and can’t take new applications. Applications already on it can still be moved.</div>
+  {% endif %}
 
   <div class="mt-4 flex flex-wrap gap-2" aria-label="Skills">
     {% for skill in job.skills.all %}
