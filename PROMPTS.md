@@ -28,6 +28,60 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-30 — Implemented Phase 10 (archive and unarchive candidates)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 10`
+2. Yes I approve them *(TDD behaviors: archiving is refused with the active count while the candidate has active applications, and allowed once all are finished; the candidate list hides archived candidates unless "Show archived" is chosen; archived candidates are left out of application choices and a stale submit naming one is refused)*
+3. Yes, I approve it *(RED test for behavior 1)*
+4. Yes, move onto behavior 2
+5. Yes, I approve it *(RED test for behavior 2)*
+6. Yes, move onto behavior 3
+7. Yes, I approve it *(RED test for behavior 3)*
+8. Yes, continue with the rest of phase 10
+9. It passed *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - `Candidate.active_application_count()` and `has_active_applications()` count applications in `ACTIVE_STAGES`, the same list the pipeline uses.
+  - New route `/candidates/<pk>/archive/` (`candidate_archive` view):
+    - It refuses with 409 for both GET and POST while any application is active, and shows a page such as "2 applications are still active. Move each one to Hired, Rejected or Withdrawn first." The wording is singular for one.
+    - Otherwise GET shows a confirmation page, and POST archives the candidate and redirects to their page.
+    - An already-archived candidate is simply redirected back to their page.
+  - New route `/candidates/<pk>/unarchive/` (`candidate_unarchive` view): POST only, always allowed.
+  - The candidate list hides archived candidates by default. A "Show archived" checkbox (`?archived=1`) submits on change, works together with search, and archived rows get a badge.
+  - The candidate page has an Archive button. An archived candidate's page instead shows an "Archived" badge, an info notice and an Unarchive button, and hides "Apply to job".
+  - `ApplicationForm`:
+    - The job-page candidate choices exclude archived candidates, so a stale submit naming one fails as an invalid choice. The message now mentions archiving.
+    - `clean()` refuses an archived candidate on the candidate-page entry point. That page shows a notice and no submit button.
+  - Three TDD behaviors went red → green. Twelve normal test functions (14 test cases) in `test_candidate_archive.py` cover:
+    - the confirm page and archive with no applications;
+    - the singular refusal on GET;
+    - re-archiving;
+    - unarchive restoring the candidate to the list;
+    - unarchive allowed with active applications;
+    - unarchive rejecting GET;
+    - the candidate-page apply refusal;
+    - both candidate-page button states;
+    - the checkbox state combined with search;
+    - 404s;
+    - login required.
+  - All 158 tests, Ruff lint and Ruff format pass, and no migration was needed. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Claude made choices that aren't in the plan:
+    - Archive goes through a confirmation page, and a blocked archive returns 409, matching `skill_delete`.
+    - The Archive button is always shown on an unarchived candidate's page, and the confirmation page explains any block.
+    - Unarchive is a single POST with no confirmation.
+    - "Show archived" includes archived candidates alongside the others rather than showing only archived ones.
+    - Re-archiving an archived candidate redirects instead of erroring.
+- **Sideways:**
+  - Behavior 1's scaffolding was a view that always archived, so the RED failed on the status code (302 instead of 409) rather than a missing URL.
+  - Behavior 3's first draft kept the candidate choices as a lazy queryset. It was only read after the stale POST had created the application, so that assertion passed when it shouldn't have. Claude caught this before asking for approval and wrapped it in `list(...)`, so the test then failed on the choices as intended.
+  - Behavior 3's GREEN covered only the job-page entry point. Claude flagged the candidate-page gap, and it was closed in the normal work.
+  - Ruff reformatted the new test file twice. There were no lint errors.
+  - The final combined check command hit the 2-minute tool timeout while running migrations after the test suite. It finished in the background with exit code 0, and the migration check was rerun separately ("No changes detected").
+
 ## 2026-10-29 — Implemented Phase 9 (close and reopen jobs)
 
 ### Prompts

@@ -29,8 +29,10 @@
       </div>
     {% elif job and job.status != 'open' %}
       <div role="alert" class="alert alert-warning text-sm mb-4">This job is closed, so it can't take new applications.</div>
+    {% elif candidate.archived %}
+      <div role="alert" class="alert alert-warning text-sm mb-4">This candidate is archived. Unarchive them before applying them to a job.</div>
     {% endif %}
-    {% if candidate or job.status == 'open' %}
+    {% if candidate and not candidate.archived or job.status == 'open' %}
       {% if has_choices %}
         <fieldset class="fieldset">
           <label class="fieldset-legend" for="{{ choice.id_for_label }}">{{ choice.label }}</label>
@@ -52,7 +54,7 @@
       {% endif %}
     {% endif %}
     <div class="mt-6 flex gap-2">
-      {% if has_choices and candidate or has_choices and job.status == 'open' %}
+      {% if has_choices and candidate and not candidate.archived or has_choices and job.status == 'open' %}
         <button type="submit" class="btn btn-primary">{% if job %}Add application{% else %}Apply to job{% endif %}</button>
       {% endif %}
       <a href="{% if job %}{{ job.get_absolute_url }}{% else %}{{ candidate.get_absolute_url }}{% endif %}" class="btn btn-ghost">Cancel</a>

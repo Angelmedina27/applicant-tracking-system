@@ -8,9 +8,15 @@
     <a href="{% url 'hiring:candidate_create' %}" class="btn btn-primary btn-sm">Log candidate</a>
   </div>
 
-  <form method="get" class="mt-6 flex gap-2 max-w-md">
-    <input type="search" name="q" value="{{ query }}" placeholder="Search by name or email" class="input w-full" aria-label="Search candidates">
-    <button type="submit" class="btn">Search</button>
+  <form method="get" class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div class="flex gap-2 w-full max-w-md">
+      <input type="search" name="q" value="{{ query }}" placeholder="Search by name or email" class="input w-full" aria-label="Search candidates">
+      <button type="submit" class="btn">Search</button>
+    </div>
+    <label class="label cursor-pointer gap-2">
+      <input type="checkbox" name="archived" value="1" class="checkbox checkbox-sm" onchange="this.form.submit()" {% if show_archived %}checked{% endif %}>
+      Show archived
+    </label>
   </form>
 
   {% if candidates %}
@@ -22,7 +28,10 @@
         <tbody>
           {% for candidate in candidates %}
             <tr class="hover:bg-base-200">
-              <td><a href="{{ candidate.get_absolute_url }}" class="link link-hover font-medium">{{ candidate.full_name }}</a></td>
+              <td>
+                <a href="{{ candidate.get_absolute_url }}" class="link link-hover font-medium">{{ candidate.full_name }}</a>
+                {% if candidate.archived %}<span class="badge badge-sm badge-neutral ml-1">Archived</span>{% endif %}
+              </td>
               <td>{{ candidate.email }}</td>
               <td>{{ candidate.get_source_display }}</td>
               <td class="hidden sm:table-cell">{{ candidate.created_at|date:"M j, Y" }}</td>

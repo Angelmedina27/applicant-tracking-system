@@ -163,12 +163,19 @@ def application_move(request, pk):
 
 def candidate_list(request):
     query = request.GET.get("q", "").strip()
+    show_archived = request.GET.get("archived") == "1"
     candidates = Candidate.objects.all()
+    if not show_archived:
+        candidates = candidates.filter(archived=False)
     if query:
         candidates = candidates.annotate(
             search_name=Concat("first_name", Value(" "), "last_name")
         ).filter(Q(search_name__icontains=query) | Q(email__icontains=query))
-    return render(request, "hiring/candidate_list.html", {"candidates": candidates, "query": query})
+    return render(
+        request,
+        "hiring/candidate_list.html",
+        {"candidates": candidates, "query": query, "show_archived": show_archived},
+    )
 
 
 def candidate_create(request):
@@ -196,6 +203,30 @@ def candidate_edit(request, pk):
         form.save()
         return redirect(candidate)
     return render(request, "hiring/candidate_form.html", {"form": form, "candidate": candidate})
+
+
+def candidate_archive(request, pk):
+    """Confirm and archive a candidate, refused while any application is active."""
+    candidate = get_object_or_404(Candidate, pk=pk)
+    if candidate.archived:
+        return redirect(candidate)
+    context = {"candidate": candidate, "active_count": candidate.active_application_count()}
+    if context["active_count"]:
+        return render(request, "hiring/candidate_archive.html", context, status=409)
+    if request.method == "POST":
+        candidate.archived = True
+        candidate.save(update_fields=["archived", "updated_at"])
+        return redirect(candidate)
+    return render(request, "hiring/candidate_archive.html", context)
+
+
+@require_POST
+def candidate_unarchive(request, pk):
+    """Unarchiving is always allowed."""
+    candidate = get_object_or_404(Candidate, pk=pk)
+    candidate.archived = False
+    candidate.save(update_fields=["archived", "updated_at"])
+    return redirect(candidate)
 
 
 def skill_list(request):

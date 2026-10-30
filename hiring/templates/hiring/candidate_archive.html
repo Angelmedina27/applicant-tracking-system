@@ -1,0 +1,32 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}Archive {{ candidate.full_name }} · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="text-sm breadcrumbs">
+    <ul>
+      <li><a href="{% url 'hiring:candidate_list' %}">Candidates</a></li>
+      <li><a href="{{ candidate.get_absolute_url }}">{{ candidate.full_name }}</a></li>
+      <li>Archive</li>
+    </ul>
+  </div>
+
+  <div class="mt-2 bg-base-100 rounded-box border border-base-300 p-6 max-w-xl">
+    <h1 class="text-2xl font-bold">Archive “{{ candidate.full_name }}”?</h1>
+    {% if active_count %}
+      <div role="alert" class="alert alert-error text-sm mt-4">
+        <p>{{ candidate.full_name }} can’t be archived because {{ active_count }} application{{ active_count|pluralize }} {{ active_count|pluralize:"is,are" }} still active. Move {{ active_count|pluralize:"it,each one" }} to Hired, Rejected or Withdrawn first.</p>
+      </div>
+      <div class="mt-6">
+        <a href="{{ candidate.get_absolute_url }}" class="btn">Back to candidate</a>
+      </div>
+    {% else %}
+      <p class="mt-2">Archived candidates are hidden from the candidate list and can’t be added to jobs. Their applications and history are kept, and you can unarchive them at any time.</p>
+      <form method="post" action="{% url 'hiring:candidate_archive' candidate.pk %}" class="mt-6 flex gap-2">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning">Archive candidate</button>
+        <a href="{{ candidate.get_absolute_url }}" class="btn btn-ghost">Cancel</a>
+      </form>
+    {% endif %}
+  </div>
+{% endblock %}

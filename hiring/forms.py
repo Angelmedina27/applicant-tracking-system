@@ -91,10 +91,13 @@ class ApplicationForm(forms.ModelForm):
             self.choice_name = "candidate"
             del self.fields["job"]
             choice = self.fields["candidate"]
-            choice.queryset = Candidate.objects.exclude(applications__job=job)
+            choice.queryset = Candidate.objects.filter(archived=False).exclude(
+                applications__job=job
+            )
             choice.label_from_instance = lambda c: f"{c.full_name} ({c.email})"
             choice.error_messages["invalid_choice"] = (
-                "That candidate can't be added. They may have already applied to this job."
+                "That candidate can't be added. "
+                "They may be archived, or they already applied to this job."
             )
         else:
             self.instance.candidate = candidate
@@ -115,4 +118,8 @@ class ApplicationForm(forms.ModelForm):
         cleaned_data = super().clean()
         if self.choice_name == "candidate" and self.instance.job.status != JobOpening.Status.OPEN:
             raise forms.ValidationError("This job is closed, so it can't take new applications.")
+        if self.choice_name == "job" and self.instance.candidate.archived:
+            raise forms.ValidationError(
+                "This candidate is archived. Unarchive them before applying them to a job."
+            )
         return cleaned_data

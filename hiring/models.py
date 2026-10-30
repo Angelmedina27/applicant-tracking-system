@@ -46,6 +46,12 @@ class Candidate(models.Model):
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
 
+    def active_application_count(self):
+        return self.applications.filter(stage__in=Application.ACTIVE_STAGES).count()
+
+    def has_active_applications(self):
+        return self.active_application_count() > 0
+
 
 class Skill(models.Model):
     name = models.CharField(max_length=100)
