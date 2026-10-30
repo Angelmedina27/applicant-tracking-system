@@ -12,6 +12,13 @@
     <div class="mt-4">
       {% include "hiring/_move_buttons.html" with target="#application-stage" return_to="application" size="btn-sm" %}
     </div>
+    {% if application.can_delete %}
+      <p class="mt-4 text-sm opacity-70">
+        Added by mistake?
+        <a href="{% url 'hiring:application_delete' application.pk %}" class="link link-error">Delete this application</a>
+        while it hasn’t been moved.
+      </p>
+    {% endif %}
   </div>
 
   <h2 id="history-heading" class="mt-8 text-lg font-semibold">Stage history</h2>

@@ -109,6 +109,9 @@ class JobOpening(models.Model):
     def get_absolute_url(self):
         return reverse("hiring:job_detail", args=[self.pk])
 
+    def can_delete(self):
+        return not self.applications.exists()
+
 
 class ApplicationQuerySet(models.QuerySet):
     def with_stage_details(self):
@@ -181,6 +184,10 @@ class Application(models.Model):
         if self.stage in (self.Stage.REJECTED, self.Stage.WITHDRAWN) and self.left_from:
             return self.Stage(self.left_from).label
         return ""
+
+    def can_delete(self):
+        """Only an application still at Applied that has never been moved."""
+        return self.stage == self.Stage.APPLIED and self.stage_changes.count() == 1
 
     @property
     def available_moves(self):

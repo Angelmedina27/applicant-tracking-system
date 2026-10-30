@@ -28,6 +28,57 @@ Each entry has this shape:
     - **Deviations:** recommendations overridden, follow-up questions asked
     - **Sideways:** failures, wrong turns, and how they were caught
 
+## 2026-10-30 — Implemented Phase 11 (guarded deletes and admin)
+
+### Prompts
+1. `/implement @prd/applicant-tracking-system.md @plans/applicant-tracking-system.md implement Phase 11`
+2. Yes, go ahead *(TDD behaviors: job delete is guarded by "can delete"; application delete only while unmoved, including one moved back to Applied; admin candidate delete confirms and cascades to applications and history)*
+3. Yes, go ahead *(RED test for behavior 1)*
+4. Yes, go ahead to behavior 2
+5. Yes, go ahead *(RED test for behavior 2)*
+6. Yes, move onto behavior 3
+7. Yes, go ahead *(RED test for behavior 3)*
+8. Yes, go ahead *(continue with the rest of Phase 11)*
+9. It passed. *(manual browser verification)*
+
+### Summary
+- **Outcome:**
+  - `JobOpening.can_delete()` is true only when the job has no applications at all, finished ones included.
+  - `Application.can_delete()` is true only at Applied with exactly one `StageChange`, the initial entry.
+  - New route `/jobs/<pk>/delete/` (`job_delete` view):
+    - It refuses with 409 on GET and POST when the job can't be deleted, and shows a "can't be deleted, close the job instead" page.
+    - Otherwise GET shows a confirmation page, and POST deletes the job and redirects to the job list.
+    - The job page shows Delete only when the check passes.
+  - New route `/applications/<pk>/delete/` (`application_delete` view):
+    - It has the same 409 refusal and confirmation pattern.
+    - After deleting, it redirects to the job page. The candidate and the job stay.
+    - The delete link sits inside the application page's stage panel, so an HTMX move removes it immediately.
+  - `hiring/admin.py` registers Candidate, Skill, JobOpening, Application and StageChange.
+    - Applications show their history as a read-only inline with no delete option.
+    - Deleting a candidate in the admin lists and cascades their applications and stage changes.
+    - Deleting a user with history is blocked by Django's protected-objects page.
+  - Three TDD behaviors went red → green. `test_deletes.py` has 17 tests in all, covering:
+    - both delete happy paths;
+    - a job with only finished applications;
+    - applications moved to Screening, Rejected or Withdrawn;
+    - the delete link disappearing after an HTMX move;
+    - login required and 404s;
+    - the protected user, at model level and in the admin;
+    - a deactivated user who can't log in but still appears on history.
+  - All 175 tests, Ruff lint, Ruff format and `manage.py check` pass, and no migration was needed. I verified the phase manually in the browser.
+- **Deviations:**
+  - I approved everything as proposed and asked no follow-up questions.
+  - Claude made choices that aren't in the plan:
+    - Refused deletes return a 409 explanation page, matching `skill_delete` and the archive refusal.
+    - Application delete is offered only on the application page, not in the pipeline table rows.
+    - The admin got list columns, filters and search, beyond the bare registration the plan asked for.
+- **Sideways:**
+  - Behavior 1's first RED failed with a `ProtectedError` rather than an assertion, because the POST ran before any check and hit the `PROTECT` foreign key. Claude reordered the test so each check follows its own request, with no change to what it asserts, and it then failed on the visible Delete link.
+  - Behavior 2's first GREEN run still failed. The confirmation page's `<title>` was "Delete application", the same text the test checks the button for. Claude changed the title to include the candidate's name instead of changing the test.
+  - Behavior 3 used the literal admin URL, because `reverse()` can't resolve it until the model is registered. It failed RED with a 404.
+  - While finishing the phase, Claude noticed that the application Delete button in the page header would stay visible after an HTMX move, since only the stage panel re-renders. It moved the link into the stage panel and added a test.
+  - The full test suite hit the 2-minute tool timeout once, finished in the background, and later runs used a longer timeout.
+
 ## 2026-10-30 — Implemented Phase 10 (archive and unarchive candidates)
 
 ### Prompts

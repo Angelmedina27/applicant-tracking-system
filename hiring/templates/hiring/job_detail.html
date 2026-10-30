@@ -24,6 +24,9 @@
       {% endif %}
       <a href="{% url 'hiring:job_edit' job.pk %}" class="btn btn-sm">Edit</a>
       <a href="{% url 'hiring:job_status' job.pk %}" class="btn btn-sm">{% if job.status == 'open' %}Close job{% else %}Reopen job{% endif %}</a>
+      {% if job.can_delete %}
+        <a href="{% url 'hiring:job_delete' job.pk %}" class="btn btn-sm btn-error btn-outline">Delete</a>
+      {% endif %}
     </div>
   </div>
 

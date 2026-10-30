@@ -1,0 +1,30 @@
+{% extends "hiring/base.html" %}
+
+{% block title %}Delete {{ application.candidate.full_name }}’s application · Applicant Tracking{% endblock %}
+
+{% block content %}
+  <div class="text-sm breadcrumbs">
+    <ul>
+      <li><a href="{% url 'hiring:job_list' %}">Jobs</a></li>
+      <li><a href="{{ application.job.get_absolute_url }}">{{ application.job.title }}</a></li>
+      <li><a href="{{ application.get_absolute_url }}">{{ application.candidate.full_name }}</a></li>
+      <li>Delete</li>
+    </ul>
+  </div>
+
+  <div class="mt-2 bg-base-100 rounded-box border border-base-300 p-6 max-w-xl">
+    {% if application.can_delete %}
+      <h1 class="text-2xl font-bold">Delete this application?</h1>
+      <p class="mt-2">This permanently removes {{ application.candidate.full_name }}’s application for {{ application.job.title }}. The candidate and the job stay.</p>
+      <form method="post" class="mt-6 flex gap-2">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-error">Delete application</button>
+        <a href="{{ application.get_absolute_url }}" class="btn btn-ghost">Cancel</a>
+      </form>
+    {% else %}
+      <h1 class="text-2xl font-bold">This application can’t be deleted</h1>
+      <p class="mt-2">It has been moved through the pipeline, so deleting it would lose its stage history. Reject or withdraw it instead.</p>
+      <a href="{{ application.get_absolute_url }}" class="btn mt-6">Back to application</a>
+    {% endif %}
+  </div>
+{% endblock %}

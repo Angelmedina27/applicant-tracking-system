@@ -93,6 +93,17 @@ def job_status(request, pk):
     return render(request, "hiring/job_status.html", {"job": job})
 
 
+def job_delete(request, pk):
+    """Confirm and delete a job, refused once it has any application."""
+    job = get_object_or_404(JobOpening, pk=pk)
+    if not job.can_delete():
+        return render(request, "hiring/job_confirm_delete.html", {"job": job}, status=409)
+    if request.method == "POST":
+        job.delete()
+        return redirect("hiring:job_list")
+    return render(request, "hiring/job_confirm_delete.html", {"job": job})
+
+
 def application_create_for_job(request, pk):
     job = get_object_or_404(JobOpening, pk=pk)
     form = ApplicationForm(request.POST or None, job=job)
@@ -159,6 +170,18 @@ def application_move(request, pk):
         url = application.job.get_absolute_url()
         return redirect(url if current == "active" else f"{url}?stage={current}")
     return render(request, "hiring/_pipeline.html", _pipeline_context(application.job, current))
+
+
+def application_delete(request, pk):
+    """Confirm and delete an application, refused once it has been moved."""
+    application = get_object_or_404(Application.objects.select_related("candidate", "job"), pk=pk)
+    context = {"application": application}
+    if not application.can_delete():
+        return render(request, "hiring/application_confirm_delete.html", context, status=409)
+    if request.method == "POST":
+        application.delete()
+        return redirect(application.job)
+    return render(request, "hiring/application_confirm_delete.html", context)
 
 
 def candidate_list(request):
